@@ -65,7 +65,7 @@ def create_caption_pdf(captions_data, output_path):
     try:
         for idx, row in enumerate(captions_data):
             logger.info(f"Processing row {idx + 1}/{len(captions_data)}")
-            pdf.add_page('L')  # Landscape orientation for better column layout
+            pdf.add_page('P')  # Landscape orientation for better column layout
             
             # Title
             pdf.set_font('Arial', 'B', 16)
@@ -169,7 +169,7 @@ def create_caption_pdf(captions_data, output_path):
                     max_height = max(max_height, 100)  # Minimum height for long sections
                     if pdf.get_y() + max_height > pdf.h - 20:  # 20 is margin from bottom
                         logger.debug(f"Adding page break before {caption_type}")
-                        pdf.add_page('L')  # Add new landscape page
+                        pdf.add_page('P')  # Add new landscape page
                         # Redraw headers on new page
                         pdf.set_font('Arial', 'B', 10)
                         for i, model in enumerate(models):

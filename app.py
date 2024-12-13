@@ -94,7 +94,12 @@ Avoid any description speaking to the feeling of the image (e.g. "adding a touch
 Pay special attention to ensuring the product image that's now in the lifestyle image is described in a way it can be reproduced with sufficient detail.
 
 Examples
-Long Caption: The image shows a woman with shoulder-length blonde hair  holding a jar of skin product. The woman is light-skinned and is smiling broadly, showcasing her teeth. She is wearing a purple t-shirt. The jar she holds is white with teal-colored accents and text. The text on the jar appears to be the brand name "DERMA E" in a sans-serif, capital font. The jar is centered in her palm, and her hand is holding it. The background is a plain, off-white wall."""
+Long Caption: The image shows a woman with shoulder-length blonde hair  holding a jar of skin product. The woman is light-skinned and is smiling broadly, showcasing her teeth. She is wearing a purple t-shirt. The jar she holds is white with teal-colored accents and text. The text on the jar appears to be the brand name "DERMA E" in a sans-serif, capital font. The jar is centered in her palm, and her hand is holding it. The background is a plain, off-white wall.
+
+Remember:
+1. Always be objective, and do not use subjective statements like: possibly, maybe, likely, 
+2. Only caption what you see, and do not make inferences from the objective facts
+3. Always begin with 'The image...' """
 
 def download_image(url):
     try:
