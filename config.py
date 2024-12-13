@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from dataclasses import dataclass
 import streamlit as st
 
 # Load environment variables from .env file for local development
@@ -25,6 +26,11 @@ def get_api_key(key_name: str) -> str:
         # Fall back to environment variables (for local development)
         return os.getenv(key_name)
 
+@dataclass
+class ModelConfig:
+    name: str
+    model_id: str
+    
 # API Keys
 OPENAI_API_KEY = get_api_key("openai_api_key")
 GOOGLE_API_KEY = get_api_key("google_api_key")
@@ -34,29 +40,9 @@ TOGETHER_API_KEY = get_api_key("together_api_key")
 
 # Model configurations
 MODELS = {
-    "OpenAI": {
-        "model_id": "gpt-4-vision-preview",
-        "max_tokens": 1000,
-        "temperature": 0.7
-    },
-    "Google": {
-        "model_id": "gemini-pro-vision",
-        "max_tokens": 1000,
-        "temperature": 0.7
-    },
-    "Together": {
-        "model_id": "llava-v1.6-34b",
-        "max_tokens": 1000,
-        "temperature": 0.7
-    },
-    "Groq": {
-        "model_id": "llama2-70b-4096",
-        "max_tokens": 1000,
-        "temperature": 0.7
-    },
-    "Grok": {
-        "model_id": "grok-v1",
-        "max_tokens": 1000,
-        "temperature": 0.7
-    }
+    "gemini": ModelConfig("Gemini", "gemini-1.5-flash"),
+    "openai": ModelConfig("OpenAI", "gpt-4o-mini"),
+    "together": ModelConfig("Together", "meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo"),
+    "groq": ModelConfig("Groq", "llama-3.2-11b-vision-preview"),
+    "grok": ModelConfig("Grok", "grok-vision-beta")
 }
