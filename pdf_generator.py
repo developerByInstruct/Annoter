@@ -12,6 +12,39 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+def clean_text(text):
+    """Clean text by replacing problematic characters with their ASCII equivalents"""
+    if not isinstance(text, str):
+        return str(text)
+    
+    # Replace smart quotes and other special characters
+    replacements = {
+        '"': '"',  # smart quote
+        '"': '"',  # smart quote
+        ''': "'",  # smart apostrophe
+        ''': "'",  # smart apostrophe
+        '–': '-',  # en dash
+        '—': '-',  # em dash
+        '…': '...',  # ellipsis
+        '\u2022': '*',  # bullet point
+        '\u2013': '-',  # en dash
+        '\u2014': '-',  # em dash
+        '\u2018': "'",  # left single quote
+        '\u2019': "'",  # right single quote
+        '\u201C': '"',  # left double quote
+        '\u201D': '"',  # right double quote
+        '\u2026': '...',  # horizontal ellipsis
+        '\u2028': ' ',  # line separator
+        '\u2029': ' ',  # paragraph separator
+    }
+    
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    
+    # Remove any remaining non-ASCII characters
+    text = text.encode('ascii', 'replace').decode('ascii')
+    return text
+
 class CaptionPDF(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 15)
@@ -115,7 +148,7 @@ def create_caption_pdf(captions_data, output_path):
                     caption_text = row.get(f'{model.lower()}_{caption_type}', '')
                     if pd.isna(caption_text):
                         caption_text = ''
-                    caption = str(caption_text)[:800]  # Increased from 400 to 800
+                    caption = clean_text(str(caption_text))[:800]  # Clean text and limit length
                     captions.append(caption)
                     
                     # Create a temporary PDF object to measure height
@@ -189,7 +222,7 @@ def create_caption_pdf(captions_data, output_path):
                     lifestyle_url = row.get(f'{model.lower()}_lifestyle_image')
                     if lifestyle_url and not pd.isna(lifestyle_url):
                         try:
-                            img_data = fetch_image(lifestyle_url)
+                            img_data = requests.get(lifestyle_url).content
                             if img_data:
                                 img = Image.open(io.BytesIO(img_data))
                                 # Calculate image dimensions to fit column
