@@ -20,6 +20,82 @@ together_client = Together(api_key=TOGETHER_API_KEY)
 groq_client = Groq(api_key=GROQ_API_KEY)
 xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
 
+sys_prompt = """You are a professional objective product copywriter. You are not subjective, nor speak in a marketing tone. Your task is to:
+Provide the short caption and long caption for product image
+Provide only a long caption for the lifestyle image.
+
+What is the product image?
+The product image should be isolated
+Color
+Featuring either a transparent or solid color background
+A neutral or plain background
+
+Objects in the image
+The image never includes humans. Objects in an image could come in pairs/triplets/etc.
+Object could be located not in focal point of an image
+There should be no text or graphics on the image (Text or graphics printed on the product is OK)
+No other artefacts present on image, such as stripes, compression artefacts, marks, or highlights
+The image should not have an extreme aspect ratio (>4)
+It should not depict the product in a real-life environment or setting. It is merely an image designed to show the user a given product in a high-level of detail from a given angle, or series of angles through multiple product images
+The whole product should be shown
+
+Packaging
+If the product has packaging, then show the product, not the packaging
+
+Lighting and Colors Requirements
+The lighting of an image shouldn’t be too dark or bright that ends up distorting or hiding the original product’s details
+Ensure the color of the object is accurate
+Example:
+
+To add caption:
+For the Short Description
+Emphasize simplicity.
+Focus only on the key elements. What this object is, if something that comes in different shapes (i.e. perfume bottle), function, material, color
+20-25 words maximum, but better to keep it 5-15 words
+Avoid using too many details for the short description and focus only on the key attributes.
+Example: A cordless vacuum with a light blue base and silver and gold handle
+
+For the Long Description
+Include all the specific details: the color of the fan, the number of blades, the material of the blades, brand/manufacturer and any additional features such as the industrial cage around the lights.
+Do not describe it in a way to sell it, describe it in a way to help a machine learning model to understand what it looks like. Only include details that can be gathered from looking at the image, do not include details that would only be learned from the product description.
+Any positioning should be based on your perspective looking at the image e.g. left, right
+
+Examples
+Short caption: A small white jar with blue cover.
+Long caption: A white round jar with a blue cover. The jar has a blue lotus flower design with a vertical blue line that runs down the packaging. The text "DERMA - E" is written below in dark color. Below that is "Eczema Relief Cream" in black font color. The size is written as 4 OZ/ 113g at the lower right corner of the jar
+
+What is a lifestyle image?
+Setting 
+An image that depicts the product in use within a real-life setting, showcasing its practical application and context. 
+This type of image helps to convey how the product fits into the daily life of the consumer, often featuring human interaction or a relatable environment. 
+
+Objects in the image 
+There should be no text or graphics on the image (Text or graphics printed on the product is OK) 
+Object could be located not in focal point of an image 
+Photo can feature multiple instances of a product 
+No other artefacts present on image such as stripes, compression artefacts, marks, or highlights 
+The image should not have an extreme aspect ratio (>4) 
+The whole product should be shown - Extra additions to the image that wouldn’t be natural
+ 
+Lighting and Color Requirements 
+The lighting of an image shouldn’t be too dark or bright that ends up distorting or hiding the original product’s details 
+Ensure the color of the object is accurate
+
+Example:
+
+
+To add caption:
+Identify and describe the main objects and their positions within the image (e.g. centered, top right corner, slightly off center to the left) 
+Positions i.e. “left” and “right” are based on your perspective looking at the image
+Describe any prominent shapes and colors of these objects. Describe any textures or patterns.
+Details of how this product exists and interacts with the rest of the objects in this image
+Describe the background in the image. 
+Avoid any description speaking to the feeling of the image (e.g. "adding a touch of life to the composition.") or any other commentary that doesn’t help re create the image. (You aren’t trying to sell the product, you’re trying to describe how it looks for a machine learning model)
+Pay special attention to ensuring the product image that's now in the lifestyle image is described in a way it can be reproduced with sufficient detail.
+
+Examples
+Long Caption: The image shows a woman with shoulder-length blonde hair  holding a jar of skin product. The woman is light-skinned and is smiling broadly, showcasing her teeth. She is wearing a purple t-shirt. The jar she holds is white with teal-colored accents and text. The text on the jar appears to be the brand name "DERMA E" in a sans-serif, capital font. The jar is centered in her palm, and her hand is holding it. The background is a plain, off-white wall."""
+
 def download_image(url):
     try:
         if pd.isna(url):
@@ -33,21 +109,7 @@ def download_image(url):
         return None
 
 def generate_prompt(image_type="product"):
-    base_prompt = """You are a professional objective product copywriter. You are not subjective, nor speak in a marketing tone. Your task is to analyze {type} images and provide appropriate captions based on the following examples:
-
-Example Product Image:
-Brand: Abbyson
-Product: Luxe Stain Resistant Fabric 2pc Sofa
-Short Caption: A grey two-seater sofa with black wooden legs and cushioned seating.
-Long Caption: A grey fabric loveseat with a modular design. The loveseat consists of two connected sections, each with a seat cushion, creating a slight dip in the middle. The upholstery has a textured appearance and is made of woven fabric. The backrest cushions are large and loose and the colour matches the seat cushion's fabric. Two additional square throw pillows rest against each arm, mirroring the design of the back cushions. The loveseat sits on four short, cylindrical black legs, with small space between the base and the floor.
-
-Example Lifestyle Image:
-Brand: Philosophy
-Product: Ultimate Miracle Worker Body Serum
-Lifestyle Caption: A bottle of "ultimate miracle worker" by Philosophy is resting on the inner part of a person's elbow, which is curved to form a V shape, with the bottle nestled in the crook. The person's knees are also visible, folded upwards as if they are seated, with only the kneecaps showing. The white bottle features a black pump dispenser and a label with multiple lines of text. The front of the label prominently displays the product name, "ultimate miracle worker," along with the brand name, "philosophy."
-
-What to look for in a {type} image:
-{criteria}
+    base_prompt = """
 
 Analyze this {type} image and provide captions in the following JSON format:
 {format}"""
@@ -58,7 +120,8 @@ Analyze this {type} image and provide captions in the following JSON format:
 - Note distinctive visual elements and patterns
 - Mention any visible branding or product identifiers
 - Describe the overall shape and structure
-- Include details about finish and surface appearance"""
+- Include details about finish and surface appearance
+- Always begin with 'The image...'"""
         
         json_format = """{
     "short_caption": "5-15 words focusing on key elements (object type, function, material, color)",
@@ -70,7 +133,8 @@ Analyze this {type} image and provide captions in the following JSON format:
 - Detail the environmental setting
 - Describe lighting and atmosphere
 - Include relevant background elements
-- Focus on how the product is being used or displayed"""
+- Focus on how the product is being used or displayed
+- Always begin with 'The image...'"""
         
         json_format = """{
     "lifestyle_caption": "Detailed description focusing on product placement, environment, and context. Include relevant details about setting and any human elements present."
@@ -149,24 +213,47 @@ def generate_captions_with_model(model_name, product_image_url, lifestyle_image_
         lifestyle_data = {"lifestyle_caption": ""}
 
         if model_name == "gemini":
-            model = genai.GenerativeModel(MODELS[model_name].model_id)
+            model = genai.GenerativeModel(MODELS[model_name].model_id,
+                system_instruction= sys_prompt
             
+            )
+            
+            # Configure generation config for JSON output
+            generation_config = genai.GenerationConfig(
+                temperature=0.1,  # Lower temperature for more deterministic output
+            )
+
             # For Gemini, we need to pass the PIL Image directly
-            product_response = model.generate_content([product_prompt, product_image])
+            product_response = model.generate_content(
+                [product_prompt, product_image],
+                generation_config=generation_config
+            )
             if product_response.text:
-                product_data = extract_json_from_text(product_response.text)
+                try:
+                    product_data = json.loads(product_response.text)
+                except json.JSONDecodeError:
+                    product_data = extract_json_from_text(product_response.text)
             
             if lifestyle_image:
-                lifestyle_response = model.generate_content([lifestyle_prompt, lifestyle_image])
+                lifestyle_response = model.generate_content(
+                    [lifestyle_prompt, lifestyle_image],
+                    generation_config=generation_config
+                )
                 if lifestyle_response.text:
-                    lifestyle_data = extract_json_from_text(lifestyle_response.text)
+                    try:
+                        lifestyle_data = json.loads(lifestyle_response.text)
+                    except json.JSONDecodeError:
+                        lifestyle_data = extract_json_from_text(lifestyle_response.text)
                     if not lifestyle_data.get("lifestyle_caption"):
                         lifestyle_data = {"lifestyle_caption": lifestyle_response.text}
         
-        elif model_name == "openai":
+        elif model_name == "gpt-4o":
             product_response = openai_client.chat.completions.create(
                 model=MODELS[model_name].model_id,
                 messages=[{
+                    "role": "system",
+                    "content": sys_prompt
+                }, {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": product_prompt},
@@ -178,16 +265,20 @@ def generate_captions_with_model(model_name, product_image_url, lifestyle_image_
                         }
                     ]
                 }],
-                max_tokens=1000
+                max_tokens=1000,
+                response_format={"type": "json_object"}
             )
             content = product_response.choices[0].message.content
             if content:
-                product_data = extract_json_from_text(content)
+                product_data = json.loads(content)
             
             if lifestyle_image_url:
                 lifestyle_response = openai_client.chat.completions.create(
                     model=MODELS[model_name].model_id,
                     messages=[{
+                        "role": "system",
+                        "content": sys_prompt
+                    }, {
                         "role": "user",
                         "content": [
                             {"type": "text", "text": lifestyle_prompt},
@@ -199,13 +290,12 @@ def generate_captions_with_model(model_name, product_image_url, lifestyle_image_
                             }
                         ]
                     }],
-                    max_tokens=1000
+                    max_tokens=1000,
+                    response_format={"type": "json_object"}
                 )
                 content = lifestyle_response.choices[0].message.content
                 if content:
-                    lifestyle_data = extract_json_from_text(content)
-                    if not lifestyle_data.get("lifestyle_caption"):
-                        lifestyle_data = {"lifestyle_caption": content}
+                    lifestyle_data = json.loads(content)
                 
         elif model_name == "together":
             product_response = together_client.chat.completions.create(
