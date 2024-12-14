@@ -16,8 +16,10 @@ A Streamlit app that generates product and lifestyle captions for images using m
   - Detailed caption for product images
   - Lifestyle caption for lifestyle images
 - Interactive data editor for reviewing and editing captions
-- Generate PDF reports with side-by-side comparisons of captions from different models
-- Download the updated Excel file with generated captions
+- Generate comprehensive reports:
+  - PDF reports with side-by-side comparisons of captions from different models
+  - Updated Excel file with generated captions
+- Single-click download of both PDF and Excel reports in a ZIP archive
 
 ## Requirements
 - Python 3.7+
@@ -60,8 +62,7 @@ streamlit run app.py
    - Select which AI models to use for caption generation
    - Click "Generate Captions" to process the images
    - Review the generated captions in the interactive data editor
-   - Generate PDF reports to compare captions from different models
-   - Download the updated Excel file with all generated captions
+   - Click the download button to get both PDF and Excel reports in a ZIP file
 
 ## PDF Reports
 The app generates detailed PDF reports that include:
