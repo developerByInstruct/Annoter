@@ -98,7 +98,7 @@ Examples
 Long Caption: The image shows a woman with shoulder-length blonde hair  holding a jar of skin product. The woman is light-skinned and is smiling broadly, showcasing her teeth. She is wearing a purple t-shirt. The jar she holds is white with teal-colored accents and text. The text on the jar appears to be the brand name "DERMA E" in a sans-serif, capital font. The jar is centered in her palm, and her hand is holding it. The background is a plain, off-white wall.
 
 Remember:
-1. Always be objective, and do not use subjective statements like: possibly, maybe, likely, 
+1. Always be objective, and do not use subjective statements like: possibly, maybe, likely, appears to, 
 2. Only caption what you see, and do not make inferences from the objective facts
 3. Always begin with 'The image...' """
 
@@ -127,7 +127,7 @@ Analyze this {type} image and provide captions in the following JSON format:
 - Mention any visible branding or product identifiers
 - Describe the overall shape and structure
 - Include details about finish and surface appearance
-- Always begin with 'The image...'"""
+- Always begin with 'A...'"""
         
         json_format = """{
     "short_caption": "5-15 words focusing on key elements (object type, function, material, color)",
