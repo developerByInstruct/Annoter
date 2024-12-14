@@ -12,6 +12,7 @@ import io
 from config import MODELS, OPENAI_API_KEY, TOGETHER_API_KEY, GROQ_API_KEY, GOOGLE_API_KEY, GROK_API_KEY
 from pdf_generator import create_caption_pdf
 import base64
+import zipfile
 
 # Initialize API clients
 genai.configure(api_key=GOOGLE_API_KEY)
@@ -374,6 +375,9 @@ def generate_captions_with_model(model_name, product_image_url, lifestyle_image_
             product_response = xai_client.chat.completions.create(
                 model=MODELS[model_name].model_id,
                 messages=[{
+                    "role": "system",
+                    "content": sys_prompt
+                }, {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": product_prompt},
@@ -395,6 +399,9 @@ def generate_captions_with_model(model_name, product_image_url, lifestyle_image_
                 lifestyle_response = xai_client.chat.completions.create(
                     model=MODELS[model_name].model_id,
                     messages=[{
+                        "role": "system",
+                        "content": sys_prompt
+                    }, {
                         "role": "user",
                         "content": [
                             {"type": "text", "text": lifestyle_prompt},
@@ -509,13 +516,6 @@ def main():
                     edited_df.to_excel(excel_buffer, index=False)
                     excel_data = excel_buffer.getvalue()
                     
-                    st.download_button(
-                        label="Download Updated Excel",
-                        data=excel_data,
-                        file_name="updated_captions.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-                    
                     # Generate PDF report
                     status_text.write("Generating PDF report...")
                     
@@ -542,14 +542,23 @@ def main():
                         create_caption_pdf(captions_data, pdf_buffer)
                         pdf_data = pdf_buffer.getvalue()
                         
+                        # Create a ZIP file containing both Excel and PDF
+                        zip_buffer = io.BytesIO()
+                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                            # Add Excel file
+                            zip_file.writestr('captions.xlsx', excel_data)
+                            # Add PDF file
+                            zip_file.writestr('captions.pdf', pdf_data)
+                        
+                        # Offer combined download
                         st.download_button(
-                            label="Download Captions PDF",
-                            data=pdf_data,
-                            file_name="captions_comparison.pdf",
-                            mime="application/pdf"
+                            label="Download Reports (Excel + PDF)",
+                            data=zip_buffer.getvalue(),
+                            file_name="caption_reports.zip",
+                            mime="application/zip"
                         )
                         
-                        status_text.write("✅ Caption generation complete! Click the buttons above to download your reports.")
+                        status_text.write("✅ Caption generation complete! Click the button above to download your reports.")
                         
                     except Exception as e:
                         st.error(f"Error generating PDF: {str(e)}")
