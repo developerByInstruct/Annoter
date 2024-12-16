@@ -126,12 +126,11 @@ Analyze this {type} image and provide captions in the following JSON format:
 - Note distinctive visual elements and patterns
 - Mention any visible branding or product identifiers
 - Describe the overall shape and structure
-- Include details about finish and surface appearance
-- Always begin with 'A...'"""
+- Include details about finish and surface appearance"""
         
         json_format = """{
-    "short_caption": "5-15 words focusing on key elements (object type, function, material, color)",
-    "long_caption": "Detailed description of all visual elements, focusing on physical attributes visible in the image. Include materials, colors, textures, and design features."
+    "short_caption": "5-15 words focusing on key elements (object type, function, material, color). Always begin short caption with 'A...'",
+    "long_caption": "Detailed description of all visual elements, focusing on physical attributes visible in the image. Include materials, colors, textures, and design features. Always begin long caption with 'The image...'"
 }"""
     else:  # lifestyle
         criteria = """- Describe the product's placement and context
