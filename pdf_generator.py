@@ -116,7 +116,7 @@ def create_caption_pdf(captions_data, output_path):
             pdf.ln(45)  # Space after images
             
             # Model Captions Table Headers
-            models = ['Gemini', 'Grok']
+            models = ['Gemini']
             col_width = 55
             row_height = 5  # Reduced row height
             padding = 2  # Add padding

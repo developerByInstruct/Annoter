@@ -44,5 +44,5 @@ MODELS = {
     #"gpt-4o": ModelConfig("OpenAI", "gpt-4o"),
     #"together": ModelConfig("Together", "meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo"),
     #"groq": ModelConfig("Groq", "llama-3.2-11b-vision-preview"),
-    "grok": ModelConfig("Grok", "grok-vision-beta")
+    #"grok": ModelConfig("Grok", "grok-vision-beta")
 }
