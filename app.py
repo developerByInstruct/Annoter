@@ -217,7 +217,7 @@ def generate_captions_with_model(model_name, product_image_url, lifestyle_image_
         product_data = {"short_caption": "", "long_caption": ""}
         lifestyle_data = {"lifestyle_caption": ""}
 
-        if model_name == "gemini":
+        if model_name == "gemini" or model_name == "gemini2":
             model = genai.GenerativeModel(MODELS[model_name].model_id,
                 system_instruction= sys_prompt
             
@@ -370,7 +370,7 @@ def generate_captions_with_model(model_name, product_image_url, lifestyle_image_
                     if not lifestyle_data.get("lifestyle_caption"):
                         lifestyle_data = {"lifestyle_caption": content}
                 
-        elif model_name == "grok":
+        elif model_name == "grok" or model_name == "grok2":
             product_response = xai_client.chat.completions.create(
                 model=MODELS[model_name].model_id,
                 messages=[{
@@ -463,11 +463,11 @@ def main():
                     status_text = st.empty()
                     total_rows = len(df)
                     
-                    # Prepare DataFrame for results
-                    for model_name in MODELS:
-                        df[f'{model_name}_short_caption'] = ''
-                        df[f'{model_name}_long_caption'] = ''
-                        df[f'{model_name}_lifestyle_caption'] = ''
+                    # No need to prepare model-specific columns anymore
+                    df['Image1_Type'] = ''
+                    df['Image1_Short_Caption'] = ''
+                    df['Image1_Long_Caption'] = ''
+                    df['Image2_Long_Caption'] = ''
                     
                     for idx, (index, row) in enumerate(df.iterrows()):
                         status_text.write(f"Processing row {idx + 1}/{total_rows}")
@@ -488,21 +488,33 @@ def main():
                                 st.image(lifestyle_image, use_container_width=True)
                         
                         if product_image:
-                            try:
-                                # Generate captions for each model
-                                for model_name in MODELS:
+                            success = False
+                            error_messages = []
+                            
+                            # Try each model sequentially until one succeeds
+                            for model_name in MODELS:
+                                try:
                                     captions = generate_captions_with_model(
                                         model_name,
                                         row['Image1_Link (Product Image)'],
                                         row.get('Image2_link (Lifestyle)', '')
                                     )
                                     
-                                    # Update DataFrame with results
-                                    for key, value in captions.items():
-                                        df.at[index, key] = value
-                                
-                            except Exception as e:
-                                st.error(f"Error processing row {idx + 1}: {str(e)}")
+                                    # Update DataFrame with results from the successful model
+                                    df.at[index, 'Image1_Type'] = 'Product'
+                                    df.at[index, 'Image1_Short_Caption'] = captions.get(f'{model_name}_short_caption', '')
+                                    df.at[index, 'Image1_Long_Caption'] = captions.get(f'{model_name}_long_caption', '')
+                                    df.at[index, 'Image2_Long_Caption'] = captions.get(f'{model_name}_lifestyle_caption', '')
+                                    
+                                    success = True
+                                    break
+                                    
+                                except Exception as e:
+                                    error_messages.append(f"{model_name}: {str(e)}")
+                                    continue
+                            
+                            if not success:
+                                st.error(f"Error processing row {idx + 1}. All models failed:\n" + "\n".join(error_messages))
                         
                         progress_bar.progress(float(idx + 1) / total_rows)
                     
@@ -522,19 +534,13 @@ def main():
                         # Convert DataFrame to list of dictionaries for PDF generation
                         captions_data = []
                         for _, row in edited_df.iterrows():
-                            row_data = {
+                            captions_data.append({
                                 'product_image_url': row['Image1_Link (Product Image)'],
-                                'lifestyle_image_url': row['Image2_link (Lifestyle)'],
-                            }
-                            
-                            for model_name in MODELS:
-                                row_data.update({
-                                    f"{model_name}_short_caption": row.get(f"{model_name}_short_caption", ""),
-                                    f"{model_name}_long_caption": row.get(f"{model_name}_long_caption", ""),
-                                    f"{model_name}_lifestyle_caption": row.get(f"{model_name}_lifestyle_caption", "")
-                                })
-                            
-                            captions_data.append(row_data)
+                                'lifestyle_image_url': row.get('Image2_link (Lifestyle)', ''),
+                                'short_caption': row['Image1_Short_Caption'],
+                                'long_caption': row['Image1_Long_Caption'],
+                                'lifestyle_caption': row['Image2_Long_Caption']
+                            })
                         
                         # Generate and offer PDF download
                         pdf_buffer = io.BytesIO()

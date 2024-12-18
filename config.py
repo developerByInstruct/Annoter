@@ -41,8 +41,10 @@ TOGETHER_API_KEY = get_api_key("together_api_key")
 # Model configurations
 MODELS = {
     "gemini": ModelConfig("Gemini", "gemini-1.5-flash"),
-    #"gpt-4o": ModelConfig("OpenAI", "gpt-4o"),
+    "gemini2": ModelConfig("Gemini2", "gemini-exp-1121"),
+    "gpt-4o": ModelConfig("OpenAI", "gpt-4o"),
     #"together": ModelConfig("Together", "meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo"),
     #"groq": ModelConfig("Groq", "llama-3.2-11b-vision-preview"),
-    #"grok": ModelConfig("Grok", "grok-vision-beta")
+    "grok": ModelConfig("Grok", "grok-vision-beta"),
+    "grok2": ModelConfig("Grok2", "grok-2-vision-1212")
 }
