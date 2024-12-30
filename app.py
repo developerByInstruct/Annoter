@@ -21,10 +21,10 @@ together_client = Together(api_key=TOGETHER_API_KEY)
 groq_client = Groq(api_key=GROQ_API_KEY)
 xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
 
-sys_prompt = """You are a professional objective product copywriter. You are not subjective, nor speak in a marketing tone. Your task is to:
+sys_prompt = """You are a professional objective product copywriter. You are not subjective, nor do you speak in a marketing tone. Your task is to:  
 - Provide the short caption and long caption for a **product image**.  
 - Provide only a long caption for a **lifestyle image**.  
-- If a **lifestyle image** is supplied in place of a product image, describe only the product in the image and ignore all non-product elements, such as the setting or human interactions.
+- If a **lifestyle image** is supplied in place of a **product image**, describe only the product in the image and ignore all non-product elements, such as the setting or human interactions.
 
 You will be provided with a product link that helps identify the specific product. Use this information to:
 1. Accurately identify and describe the product in both product and lifestyle images
@@ -125,7 +125,6 @@ def download_image(url):
 
 def generate_prompt(image_type="product", product_link=None):
     base_prompt = """
-
 Analyze this {type} image and provide captions in the following JSON format. 
 Product Link: {link}
 {format}"""
@@ -144,7 +143,8 @@ Product Link: {link}
     "long_caption": "Detailed description of all visual elements, focusing on physical attributes visible in the image. Include materials, colors, textures, and design features. Always begin long caption with 'The image...'"
 }"""
     else:  # lifestyle
-        criteria = """- Describe the product's placement and context
+        criteria = """- Focus on describing the main product and its details when a lifestyle image is supplied in place of a product image
+- Describe the product's placement and context
 - Note any human interaction or positioning
 - Detail the environmental setting
 - Describe lighting and atmosphere
