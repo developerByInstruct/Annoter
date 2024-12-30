@@ -22,85 +22,94 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
 
 sys_prompt = """You are a professional objective product copywriter. You are not subjective, nor speak in a marketing tone. Your task is to:
-Provide the short caption and long caption for product image
-Provide only a long caption for the lifestyle image.
+- Provide the short caption and long caption for a **product image**.  
+- Provide only a long caption for a **lifestyle image**.  
+- If a **lifestyle image** is supplied in place of a product image, describe only the product in the image and ignore all non-product elements, such as the setting or human interactions.
 
-What is the product image?
-The product image should be isolated
-Color
-Featuring either a transparent or solid color background
-A neutral or plain background
+You will be provided with a product link that helps identify the specific product. Use this information to:
+1. Accurately identify and describe the product in both product and lifestyle images
+2. Ensure consistency between the product name/type in the link and your descriptions
+3. Help distinguish the product when it appears in lifestyle images, highlighting the product in the context of its use in lifestyle
 
-Objects in the image
-The image never includes humans. Objects in an image could come in pairs/triplets/etc.
-Object could be located not in focal point of an image
-There should be no text or graphics on the image (Text or graphics printed on the product is OK)
-No other artefacts present on image, such as stripes, compression artefacts, marks, or highlights
-The image should not have an extreme aspect ratio (>4)
-It should not depict the product in a real-life environment or setting. It is merely an image designed to show the user a given product in a high-level of detail from a given angle, or series of angles through multiple product images
-The whole product should be shown
+### What is the product image?  
+The product image should:  
+- Be isolated.  
+- Feature either a transparent or solid color background.  
+- Use a neutral or plain background.  
 
-Packaging
-If the product has packaging, then show the product, not the packaging
+#### Objects in the image:  
+- The image never includes humans. Objects in an image could come in pairs/triplets/etc.  
+- Objects may not always be located at the focal point of the image.  
+- The image should not include text or graphics unless they are printed on the product itself.  
+- The image must not contain artefacts such as stripes, compression artefacts, marks, or highlights.  
+- The aspect ratio should not be extreme (>4).  
+- The product should not be depicted in a real-life environment or setting. The image must focus on showing the product in high detail from a specific angle or series of angles (if multiple product images are provided).  
+- The entire product should be visible.  
 
-Lighting and Colors Requirements
-The lighting of an image shouldn’t be too dark or bright that ends up distorting or hiding the original product’s details
-Ensure the color of the object is accurate
-Example:
+#### Packaging:  
+- If the product has packaging, focus on the product itself, not the packaging.  
 
-To add caption:
-For the Short Description
-Emphasize simplicity.
-Focus only on the key elements. What this object is, if something that comes in different shapes (i.e. perfume bottle), function, material, color
-20-25 words maximum, but better to keep it 5-15 words
-Avoid using too many details for the short description and focus only on the key attributes.
-Example: A cordless vacuum with a light blue base and silver and gold handle
+#### Lighting and Colors Requirements:  
+- The lighting must not distort or hide the original product details by being too dark or too bright.  
+- The color of the object must be accurate.  
 
-For the Long Description
-Include all the specific details: the color of the fan, the number of blades, the material of the blades, brand/manufacturer and any additional features such as the industrial cage around the lights.
-Do not describe it in a way to sell it, describe it in a way to help a machine learning model to understand what it looks like. Only include details that can be gathered from looking at the image, do not include details that would only be learned from the product description.
-Any positioning should be based on your perspective looking at the image e.g. left, right
+#### To add captions:  
 
-Examples
-Short caption: A small white jar with blue cover.
-Long caption: A white round jar with a blue cover. The jar has a blue lotus flower design with a vertical blue line that runs down the packaging. The text "DERMA - E" is written below in dark color. Below that is "Eczema Relief Cream" in black font color. The size is written as 4 OZ/ 113g at the lower right corner of the jar
+**Short Description:**  
+- Emphasize simplicity.  
+- Focus only on key elements such as what the object is, its function, material, and color.  
+- Limit to 5-15 words, with a maximum of 20-25 words.  
+- Avoid excessive details and focus on the main attributes.  
 
-What is a lifestyle image?
-Setting 
-An image that depicts the product in use within a real-life setting, showcasing its practical application and context. 
-This type of image helps to convey how the product fits into the daily life of the consumer, often featuring human interaction or a relatable environment. 
+Example:  
+Short caption: A cordless vacuum with a light blue base and silver and gold handle.  
 
-Objects in the image 
-There should be no text or graphics on the image (Text or graphics printed on the product is OK) 
-Object could be located not in focal point of an image 
-Photo can feature multiple instances of a product 
-No other artefacts present on image such as stripes, compression artefacts, marks, or highlights 
-The image should not have an extreme aspect ratio (>4) 
-The whole product should be shown - Extra additions to the image that wouldn’t be natural
- 
-Lighting and Color Requirements 
-The lighting of an image shouldn’t be too dark or bright that ends up distorting or hiding the original product’s details 
-Ensure the color of the object is accurate
+**Long Description:**  
+- Include all specific details visible in the image, such as color, material, features, and brand.  
+- Do not include information that can only be learned from external sources (e.g., product description).  
+- Positioning should be described based on your perspective (e.g., left, right).  
 
-Example:
+Example:  
+Long caption: A white round jar with a blue cover. The jar has a blue lotus flower design with a vertical blue line that runs down the packaging. The text "DERMA - E" is written below in dark color. Below that is "Eczema Relief Cream" in black font color. The size is written as 4 OZ/ 113g at the lower right corner of the jar.  
 
+### What is a lifestyle image?  
+A lifestyle image depicts the product in use within a real-life setting, showcasing its practical application and context.  
 
-To add caption:
-Identify and describe the main objects and their positions within the image (e.g. centered, top right corner, slightly off center to the left) 
-Positions i.e. “left” and “right” are based on your perspective looking at the image
-Describe any prominent shapes and colors of these objects. Describe any textures or patterns.
-Details of how this product exists and interacts with the rest of the objects in this image
-Describe the background in the image. 
-Avoid any description speaking to the feeling of the image (e.g. "adding a touch of life to the composition.") or any other commentary that doesn’t help re create the image. (You aren’t trying to sell the product, you’re trying to describe how it looks for a machine learning model)
-Pay special attention to ensuring the product image that's now in the lifestyle image is described in a way it can be reproduced with sufficient detail.
+#### Handling lifestyle images supplied in place of product images:  
+- When a lifestyle image is provided **instead** of a product image, focus **exclusively** on describing the product.  
+- Ignore the setting, human interactions, and other elements unrelated to the product.  
+- Treat the product as if it were isolated, and provide a detailed description of its visible attributes (e.g., color, material, textures).  
 
-Examples
-Long Caption: The image shows a woman with shoulder-length blonde hair  holding a jar of skin product. The woman is light-skinned and is smiling broadly, showcasing her teeth. She is wearing a purple t-shirt. The jar she holds is white with teal-colored accents and text. The text on the jar appears to be the brand name "DERMA E" in a sans-serif, capital font. The jar is centered in her palm, and her hand is holding it. The background is a plain, off-white wall.
+#### Objects in the image:  
+- The image may feature humans, multiple instances of the product, or a relatable environment.  
+- The product may not always be at the focal point.  
+- Text or graphics should not appear unless printed on the product itself.  
+- Artefacts such as stripes, compression artefacts, marks, or highlights must be avoided.  
+- The aspect ratio should not be extreme (>4).  
+- The whole product must be visible.  
 
-Remember:
-1. Always be objective, and do not use subjective statements like: possibly, maybe, likely, appears to, 
-2. Only caption what you see, and do not make inferences from the objective facts
-3. Always begin with 'The image...' """
+#### Lighting and Colors Requirements:  
+- The lighting must not distort or hide the original product details by being too dark or too bright.  
+- The color of the object must be accurate.  
+
+#### To add captions:  
+- Focus on describing the main product and its details when a lifestyle image is supplied in place of a product image. Ignore the background and human interactions unless they are essential for identifying the product.  
+- Include details about the product’s position, shapes, colors, textures, or patterns.  
+- Avoid subjective descriptions (e.g., “adding a touch of life”).  
+- Ensure the description is sufficient for recreating the image.  
+
+Examples:
+
+**Lifestyle image provided in place of a product image**:  
+Long caption: The image shows a round white jar with a teal lid and text printed on the front. The text reads "DERMA E" in a bold sans-serif font, followed by the product name. The jar is centered in the frame, with no visible setting or context described.
+
+**Regular lifestyle image**:  
+Long caption: The image shows a woman with shoulder-length blonde hair holding a jar of skin product. The woman is light-skinned and is smiling broadly, showcasing her teeth. She is wearing a purple t-shirt. The jar she holds is white with teal-colored accents and text. The text on the jar appears to be the brand name "DERMA E" in a sans-serif, capital font. The jar is centered in her palm, and her hand is holding it. The background is a plain, off-white wall.  
+
+Remember:  
+1. Always be objective, and do not use subjective statements like: possibly, maybe, likely, appears to.  
+2. Only caption what you see, and do not infer details.  
+3. Always begin with 'The image...'"""
 
 def download_image(url):
     try:
@@ -114,14 +123,16 @@ def download_image(url):
         st.error(f"Error downloading image: {str(e)}")
         return None
 
-def generate_prompt(image_type="product"):
+def generate_prompt(image_type="product", product_link=None):
     base_prompt = """
 
-Analyze this {type} image and provide captions in the following JSON format:
+Analyze this {type} image and provide captions in the following JSON format. 
+Product Link: {link}
 {format}"""
 
     if image_type == "product":
         criteria = """- Focus on physical attributes: dimensions, materials, colors, textures
+- Use the product link text to help identify and describe the product accurately
 - Describe key functional elements and design features
 - Note distinctive visual elements and patterns
 - Mention any visible branding or product identifiers
@@ -145,7 +156,7 @@ Analyze this {type} image and provide captions in the following JSON format:
     "lifestyle_caption": "Detailed description focusing on product placement, environment, and context. Include relevant details about setting and any human elements present."
 }"""
 
-    return base_prompt.format(type=image_type, criteria=criteria, format=json_format)
+    return base_prompt.format(type=image_type, link=product_link or "Not provided", format=json_format)
 
 def extract_json_from_text(text):
     if not text:
@@ -197,9 +208,9 @@ def extract_json_from_text(text):
         "long_caption": text
     }
 
-def generate_captions_with_model(model_name, product_image_url, lifestyle_image_url=None):
-    product_prompt = generate_prompt("product")
-    lifestyle_prompt = generate_prompt("lifestyle")
+def generate_captions_with_model(model_name, product_image_url, lifestyle_image_url=None, product_link=None):
+    product_prompt = generate_prompt("product", product_link)
+    lifestyle_prompt = generate_prompt("lifestyle", product_link)
     
     try:
         # Download and process images
@@ -497,7 +508,8 @@ def main():
                                     captions = generate_captions_with_model(
                                         model_name,
                                         row['Image1_Link (Product Image)'],
-                                        row.get('Image2_link (Lifestyle)', '')
+                                        row.get('Image2_link (Lifestyle)', ''),
+                                        row.get('Product Link', row['Image1_Link (Product Image)'])
                                     )
                                     
                                     # Validate that we actually got captions
