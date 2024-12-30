@@ -143,8 +143,7 @@ Product Link: {link}
     "long_caption": "Detailed description of all visual elements, focusing on physical attributes visible in the image. Include materials, colors, textures, and design features. Always begin long caption with 'The image...'"
 }"""
     else:  # lifestyle
-        criteria = """- Focus on describing the main product and its details when a lifestyle image is supplied in place of a product image
-- Describe the product's placement and context
+        criteria = """- Describe the product's placement and context
 - Note any human interaction or positioning
 - Detail the environmental setting
 - Describe lighting and atmosphere
