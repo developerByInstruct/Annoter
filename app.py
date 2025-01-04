@@ -13,6 +13,8 @@ from config import MODELS, OPENAI_API_KEY, TOGETHER_API_KEY, GROQ_API_KEY, GOOGL
 from pdf_generator import create_caption_pdf
 import base64
 import zipfile
+from scraper_page import ProductScraper
+from data_pipeline import DataPreparationPipeline
 
 # Initialize API clients
 genai.configure(api_key=GOOGLE_API_KEY)
@@ -444,165 +446,252 @@ def generate_captions_with_model(model_name, product_image_url, lifestyle_image_
             f"{model_name}_lifestyle_caption": ""
         }
 
+
 def main():
-    st.title("Product Caption Generator")
+    st.sidebar.title("Navigation")
+    page = st.sidebar.radio("Select a page", ["Caption Generator", "Product Scraper"])
     
-    # File uploader
-    uploaded_file = st.file_uploader("Upload your Excel file", type=['xlsx'])
-    
-    if uploaded_file:
-        try:
-            # Read Excel file
-            df = pd.read_excel(uploaded_file)
-            df = df.dropna(how='all')  # Remove completely empty rows
-            
-            if df.empty:
-                st.error("The uploaded Excel file is empty or contains no valid data.")
-                return
-            
-            required_columns = ['Image1_Link (Product Image)']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            if missing_columns:
-                st.error(f"Missing required columns: {', '.join(missing_columns)}")
-                return
-            
-            # Process each row
-            if st.button("Generate Captions"):
-                with st.spinner("Generating captions..."):
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    total_rows = len(df)
-                    
-                    # No need to prepare model-specific columns anymore
-                    #df['Image1_Type'] = ''
-                    df['Image1_Short_Caption'] = ''
-                    df['Image1_Long_Caption'] = ''
-                    df['Image2_Long_Caption'] = ''
-                    
-                    for idx, (index, row) in enumerate(df.iterrows()):
-                        status_text.write(f"Processing row {idx + 1}/{total_rows}")
+    if page == "Caption Generator":
+        # Your existing caption generator code
+        st.title("Product Caption Generator")
+        
+        # File uploader
+        uploaded_file = st.file_uploader("Upload your Excel file", type=['xlsx'])
+        
+        if uploaded_file:
+            try:
+                # Read Excel file
+                df = pd.read_excel(uploaded_file)
+                df = df.dropna(how='all')  # Remove completely empty rows
+                
+                if df.empty:
+                    st.error("The uploaded Excel file is empty or contains no valid data.")
+                    return
+                
+                required_columns = ['Image1_Link (Product Image)']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                if missing_columns:
+                    st.error(f"Missing required columns: {', '.join(missing_columns)}")
+                    return
+                
+                # Process each row
+                if st.button("Generate Captions"):
+                    with st.spinner("Generating captions..."):
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        total_rows = len(df)
                         
-                        # Create columns for images
-                        col1, col2 = st.columns(2)
+                        # No need to prepare model-specific columns anymore
+                        #df['Image1_Type'] = ''
+                        df['Image1_Short_Caption'] = ''
+                        df['Image1_Long_Caption'] = ''
+                        df['Image2_Long_Caption'] = ''
                         
-                        with col1:
-                            st.write("Product Image:")
-                            product_image = download_image(row['Image1_Link (Product Image)'])
+                        for idx, (index, row) in enumerate(df.iterrows()):
+                            status_text.write(f"Processing row {idx + 1}/{total_rows}")
+                            
+                            # Create columns for images
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.write("Product Image:")
+                                product_image = download_image(row['Image1_Link (Product Image)'])
+                                if product_image:
+                                    st.image(product_image, use_container_width=True)
+                            
+                            with col2:
+                                st.write("Lifestyle Image:")
+                                lifestyle_image = download_image(row.get('Image2_link (Lifestyle)', ''))
+                                if lifestyle_image:
+                                    st.image(lifestyle_image, use_container_width=True)
+                            
                             if product_image:
-                                st.image(product_image, use_container_width=True)
-                        
-                        with col2:
-                            st.write("Lifestyle Image:")
-                            lifestyle_image = download_image(row.get('Image2_link (Lifestyle)', ''))
-                            if lifestyle_image:
-                                st.image(lifestyle_image, use_container_width=True)
-                        
-                        if product_image:
-                            success = False
-                            error_messages = []
+                                success = False
+                                error_messages = []
+                                
+                                # Try each model sequentially until one succeeds
+                                for model_name in MODELS:
+                                    try:
+                                        captions = generate_captions_with_model(
+                                            model_name,
+                                            row['Image1_Link (Product Image)'],
+                                            row.get('Image2_link (Lifestyle)', ''),
+                                            row.get('Product Link', row['Image1_Link (Product Image)'])
+                                        )
+                                        
+                                        # Validate that we actually got captions
+                                        short_caption = captions.get(f'{model_name}_short_caption', '').strip()
+                                        long_caption = captions.get(f'{model_name}_long_caption', '').strip()
+                                        lifestyle_caption = captions.get(f'{model_name}_lifestyle_caption', '').strip()
+                                        
+                                        if not short_caption or not long_caption:
+                                            raise Exception(f"No valid captions generated by {model_name}")
+                                        
+                                        # Update DataFrame with results from the successful model
+                                        #df.at[index, 'Image1_Type'] = 'Product'
+                                        df.at[index, 'Image1_Short_Caption'] = short_caption
+                                        df.at[index, 'Image1_Long_Caption'] = long_caption
+                                        if lifestyle_caption:
+                                            df.at[index, 'Image2_Long_Caption'] = lifestyle_caption
+                                        
+                                        success = True
+                                        break
+                                        
+                                    except Exception as e:
+                                        error_msg = str(e)
+                                        # Check for specific error messages
+                                        if any(err in error_msg.lower() for err in [
+                                            'resource has been exhausted',
+                                            'too many requests',
+                                            'response.candidates is empty',
+                                            'no valid captions generated'
+                                        ]):
+                                            error_messages.append(f"{model_name}: {error_msg}")
+                                            continue
+                                        else:
+                                            # For unexpected errors, show them immediately
+                                            st.error(f"Unexpected error with {model_name}: {error_msg}")
+                                            error_messages.append(f"{model_name}: {error_msg}")
+                                            continue
+                                
+                                if not success:
+                                    st.error(f"Error processing row {idx + 1}. All models failed:\n" + "\n".join(error_messages))
                             
-                            # Try each model sequentially until one succeeds
-                            for model_name in MODELS:
-                                try:
-                                    captions = generate_captions_with_model(
-                                        model_name,
-                                        row['Image1_Link (Product Image)'],
-                                        row.get('Image2_link (Lifestyle)', ''),
-                                        row.get('Product Link', row['Image1_Link (Product Image)'])
-                                    )
-                                    
-                                    # Validate that we actually got captions
-                                    short_caption = captions.get(f'{model_name}_short_caption', '').strip()
-                                    long_caption = captions.get(f'{model_name}_long_caption', '').strip()
-                                    lifestyle_caption = captions.get(f'{model_name}_lifestyle_caption', '').strip()
-                                    
-                                    if not short_caption or not long_caption:
-                                        raise Exception(f"No valid captions generated by {model_name}")
-                                    
-                                    # Update DataFrame with results from the successful model
-                                    #df.at[index, 'Image1_Type'] = 'Product'
-                                    df.at[index, 'Image1_Short_Caption'] = short_caption
-                                    df.at[index, 'Image1_Long_Caption'] = long_caption
-                                    if lifestyle_caption:
-                                        df.at[index, 'Image2_Long_Caption'] = lifestyle_caption
-                                    
-                                    success = True
-                                    break
-                                    
-                                except Exception as e:
-                                    error_msg = str(e)
-                                    # Check for specific error messages
-                                    if any(err in error_msg.lower() for err in [
-                                        'resource has been exhausted',
-                                        'too many requests',
-                                        'response.candidates is empty',
-                                        'no valid captions generated'
-                                    ]):
-                                        error_messages.append(f"{model_name}: {error_msg}")
-                                        continue
-                                    else:
-                                        # For unexpected errors, show them immediately
-                                        st.error(f"Unexpected error with {model_name}: {error_msg}")
-                                        error_messages.append(f"{model_name}: {error_msg}")
-                                        continue
+                            progress_bar.progress(float(idx + 1) / total_rows)
+                        
+                        # Display results in data editor
+                        st.subheader("Generated Captions")
+                        edited_df = st.data_editor(df)
+                        
+                        # Save to Excel
+                        excel_buffer = io.BytesIO()
+                        edited_df.to_excel(excel_buffer, index=False)
+                        excel_data = excel_buffer.getvalue()
+                        
+                        # Generate PDF report
+                        status_text.write("Generating PDF report...")
+                        
+                        try:
+                            # Convert DataFrame to list of dictionaries for PDF generation
+                            captions_data = []
+                            for _, row in edited_df.iterrows():
+                                captions_data.append({
+                                    'product_image_url': row['Image1_Link (Product Image)'],
+                                    'lifestyle_image_url': row.get('Image2_link (Lifestyle)', ''),
+                                    'short_caption': row['Image1_Short_Caption'],
+                                    'long_caption': row['Image1_Long_Caption'],
+                                    'lifestyle_caption': row['Image2_Long_Caption']
+                                })
                             
-                            if not success:
-                                st.error(f"Error processing row {idx + 1}. All models failed:\n" + "\n".join(error_messages))
+                            # Generate and offer PDF download
+                            pdf_buffer = io.BytesIO()
+                            create_caption_pdf(captions_data, pdf_buffer)
+                            pdf_data = pdf_buffer.getvalue()
+                            
+                            # Create a ZIP file containing both Excel and PDF
+                            zip_buffer = io.BytesIO()
+                            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                # Add Excel file
+                                zip_file.writestr('captions.xlsx', excel_data)
+                                # Add PDF file
+                                zip_file.writestr('captions.pdf', pdf_data)
+                            
+                            # Offer combined download
+                            st.download_button(
+                                label="Download Reports (Excel + PDF)",
+                                data=zip_buffer.getvalue(),
+                                file_name="caption_reports.zip",
+                                mime="application/zip"
+                            )
+                            
+                            status_text.write("✅ Caption generation complete! Click the button above to download your reports.")
+                            
+                        except Exception as e:
+                            st.error(f"Error generating PDF: {str(e)}")
                         
-                        progress_bar.progress(float(idx + 1) / total_rows)
+            except Exception as e:
+                st.error(f"Error reading Excel file: {str(e)}")
+        pass
+    else:
+        display_scraper_page()
+
+def display_scraper_page():
+    st.title("Product Scraper")
+    
+    # Configuration section
+    with st.expander("Configuration", expanded=True):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            model_options = ["gemini", "gpt-4o", "grok"]
+            selected_model = st.selectbox("Select LLM Model", model_options)
+        
+        with col2:
+            brand_url = st.text_input("Enter Brand URL")
+    
+    # Scraping controls
+    if st.button("Start Scraping", type="primary"):
+        if brand_url:
+            try:
+                # Initialize scraper
+                scraper = ProductScraper(brand_url, selected_model)
+                
+                # Step 1: Collect raw data
+                raw_products = scraper.scrape_site()
+                
+                # Show intermediate results
+                with st.expander("Initial Data Collection", expanded=True):
+                    st.write(f"Found {len(raw_products)} potential product pages")
                     
-                    # Display results in data editor
-                    st.subheader("Generated Captions")
-                    edited_df = st.data_editor(df)
+                    # Display platform info if detected
+                    if scraper.platform:
+                        st.info(f"Detected platform: {scraper.platform}")
                     
-                    # Save to Excel
-                    excel_buffer = io.BytesIO()
-                    edited_df.to_excel(excel_buffer, index=False)
-                    excel_data = excel_buffer.getvalue()
+                    # Show error summary if any
+                    error_summary = scraper.error_handler.get_error_summary()
+                    if error_summary['total_errors'] > 0:
+                        st.warning("Scraping completed with errors:", icon="⚠️")
+                        st.json(error_summary)
+                
+                # Step 2: Process and analyze data
+                pipeline = DataPreparationPipeline(raw_products, selected_model)
+                df = pipeline.prepare_data()
+                
+                # Show final results
+                with st.expander("Processed Results", expanded=True):
+                    st.write(f"Processed {len(df)} verified products")
+                    st.dataframe(df)
+                
+                # Download options
+                if not df.empty:
+                    col1, col2 = st.columns(2)
                     
-                    # Generate PDF report
-                    status_text.write("Generating PDF report...")
-                    
-                    try:
-                        # Convert DataFrame to list of dictionaries for PDF generation
-                        captions_data = []
-                        for _, row in edited_df.iterrows():
-                            captions_data.append({
-                                'product_image_url': row['Image1_Link (Product Image)'],
-                                'lifestyle_image_url': row.get('Image2_link (Lifestyle)', ''),
-                                'short_caption': row['Image1_Short_Caption'],
-                                'long_caption': row['Image1_Long_Caption'],
-                                'lifestyle_caption': row['Image2_Long_Caption']
-                            })
-                        
-                        # Generate and offer PDF download
-                        pdf_buffer = io.BytesIO()
-                        create_caption_pdf(captions_data, pdf_buffer)
-                        pdf_data = pdf_buffer.getvalue()
-                        
-                        # Create a ZIP file containing both Excel and PDF
-                        zip_buffer = io.BytesIO()
-                        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                            # Add Excel file
-                            zip_file.writestr('captions.xlsx', excel_data)
-                            # Add PDF file
-                            zip_file.writestr('captions.pdf', pdf_data)
-                        
-                        # Offer combined download
+                    with col1:
+                        # Excel download
+                        excel_buffer = io.BytesIO()
+                        df.to_excel(excel_buffer, index=False)
                         st.download_button(
-                            label="Download Reports (Excel + PDF)",
-                            data=zip_buffer.getvalue(),
-                            file_name="caption_reports.zip",
-                            mime="application/zip"
+                            label="Download Excel",
+                            data=excel_buffer.getvalue(),
+                            file_name="scraped_products.xlsx",
+                            mime="application/vnd.ms-excel"
                         )
-                        
-                        status_text.write("✅ Caption generation complete! Click the button above to download your reports.")
-                        
-                    except Exception as e:
-                        st.error(f"Error generating PDF: {str(e)}")
                     
-        except Exception as e:
-            st.error(f"Error reading Excel file: {str(e)}")
+                    with col2:
+                        # JSON download (for debugging)
+                        json_str = df.to_json(orient='records')
+                        st.download_button(
+                            label="Download JSON",
+                            data=json_str,
+                            file_name="scraped_products.json",
+                            mime="application/json"
+                        )
+            
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
+                st.exception(e)
+        else:
+            st.error("Please enter a brand URL")
 
 if __name__ == "__main__":
     main()
