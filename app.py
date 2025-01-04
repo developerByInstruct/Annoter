@@ -13,7 +13,7 @@ from config import MODELS, OPENAI_API_KEY, TOGETHER_API_KEY, GROQ_API_KEY, GOOGL
 from pdf_generator import create_caption_pdf
 import base64
 import zipfile
-from scraper_page import ProductScraper
+from scraper_page import display_scraper_page
 from data_pipeline import DataPreparationPipeline
 
 # Initialize API clients
@@ -615,83 +615,6 @@ def main():
     else:
         display_scraper_page()
 
-def display_scraper_page():
-    st.title("Product Scraper")
-    
-    # Configuration section
-    with st.expander("Configuration", expanded=True):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            model_options = ["gemini", "gpt-4o", "grok"]
-            selected_model = st.selectbox("Select LLM Model", model_options)
-        
-        with col2:
-            brand_url = st.text_input("Enter Brand URL")
-    
-    # Scraping controls
-    if st.button("Start Scraping", type="primary"):
-        if brand_url:
-            try:
-                # Initialize scraper
-                scraper = ProductScraper(brand_url, selected_model)
-                
-                # Step 1: Collect raw data
-                raw_products = scraper.scrape_site()
-                
-                # Show intermediate results
-                with st.expander("Initial Data Collection", expanded=True):
-                    st.write(f"Found {len(raw_products)} potential product pages")
-                    
-                    # Display platform info if detected
-                    if scraper.platform:
-                        st.info(f"Detected platform: {scraper.platform}")
-                    
-                    # Show error summary if any
-                    error_summary = scraper.error_handler.get_error_summary()
-                    if error_summary['total_errors'] > 0:
-                        st.warning("Scraping completed with errors:", icon="⚠️")
-                        st.json(error_summary)
-                
-                # Step 2: Process and analyze data
-                pipeline = DataPreparationPipeline(raw_products, selected_model)
-                df = pipeline.prepare_data()
-                
-                # Show final results
-                with st.expander("Processed Results", expanded=True):
-                    st.write(f"Processed {len(df)} verified products")
-                    st.dataframe(df)
-                
-                # Download options
-                if not df.empty:
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        # Excel download
-                        excel_buffer = io.BytesIO()
-                        df.to_excel(excel_buffer, index=False)
-                        st.download_button(
-                            label="Download Excel",
-                            data=excel_buffer.getvalue(),
-                            file_name="scraped_products.xlsx",
-                            mime="application/vnd.ms-excel"
-                        )
-                    
-                    with col2:
-                        # JSON download (for debugging)
-                        json_str = df.to_json(orient='records')
-                        st.download_button(
-                            label="Download JSON",
-                            data=json_str,
-                            file_name="scraped_products.json",
-                            mime="application/json"
-                        )
-            
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
-                st.exception(e)
-        else:
-            st.error("Please enter a brand URL")
 
 if __name__ == "__main__":
     main()

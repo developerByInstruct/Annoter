@@ -17,8 +17,9 @@ from error_handlers import (
     ErrorHandler, PlatformDetector, PlatformAdapter,
     ScraperError, URLError, ImageError, APIError
 )
-from llm_analyzers import GeminiAnalyzer, GPT4OAnalyzer, XAIAnalyzer
 from data_pipeline import DataPreparationPipeline, ProcessedProduct 
+from rate_limiter import RateLimiter
+from checkpoint_manager import CheckpointManager
 
 @dataclass
 class ScrapedProduct:
@@ -40,12 +41,24 @@ class ProcessedProduct:
     verification_status: str
 
 class ProductScraper:
-    def __init__(self, brand_url: str, selected_model: str):
+    def __init__(self, brand_url: str):
         self.brand_url = brand_url
-        self.model = selected_model
         self.visited_urls = set()
         self.raw_products = []
         self.max_depth = 3
+        self.rate_limiter = RateLimiter()
+        self.checkpoint_manager = CheckpointManager()
+        
+        # Load previous checkpoint if exists
+        checkpoint = self.checkpoint_manager.load_checkpoint()
+        if checkpoint:
+            self.visited_urls = set(checkpoint.get('visited_urls', []))
+            self.last_url = checkpoint.get('last_url')
+            self.rate_limiter.rate_limit.processed_images = checkpoint.get('processed_images', 0)
+            st.info(f"Loaded checkpoint from {checkpoint.get('timestamp')}")
+            st.info(f"Resume from URL: {self.last_url}")
+        else:
+            self.last_url = None
         
         # Initialize error handler
         self.error_handler = ErrorHandler()
@@ -53,9 +66,16 @@ class ProductScraper:
         # Detect platform and initialize adapter
         self.platform = PlatformDetector.detect_platform(brand_url, '')
         self.adapter = PlatformAdapter(self.platform)
-        
-        # Initialize appropriate LLM analyzer
-        self.analyzer = self._get_analyzer()
+
+    def _save_checkpoint(self, current_url: str) -> None:
+        """Save current scraping progress"""
+        checkpoint_data = {
+            'visited_urls': list(self.visited_urls),
+            'last_url': current_url,
+            'processed_images': self.rate_limiter.rate_limit.processed_images,
+            'brand_url': self.brand_url
+        }
+        self.checkpoint_manager.save_checkpoint(checkpoint_data)
 
     def _extract_links(self, url: str) -> List[str]:
         """Extract relevant links from a page"""
@@ -128,16 +148,34 @@ class ProductScraper:
         }
         return analyzers[self.model](self.model)
     
+
     def scrape_site(self) -> List[ScrapedProduct]:
-        """Enhanced main scraping loop with error handling"""
-        urls_to_visit = [self.brand_url]
-        self.visited_urls = set()  # Initialize visited URLs set
+        """Enhanced main scraping loop with checkpoint support"""
+        # Initialize URLs to visit based on checkpoint
+        if self.last_url:
+            urls_to_visit = [self.last_url]
+        else:
+            urls_to_visit = [self.brand_url]
         
         with st.spinner("Collecting product pages..."):
             progress_bar = st.progress(0)
             status_text = st.empty()
+            rate_limit_status = st.empty()
+            checkpoint_status = st.empty()
             
+        try:
             while urls_to_visit:
+                # Check rate limits
+                if not self.rate_limiter.can_process():
+                    limiter_status = self.rate_limiter.get_status()
+                    
+                    if limiter_status['processed_images'] >= self.rate_limiter.rate_limit.max_images:
+                        # Save checkpoint before stopping
+                        self._save_checkpoint(urls_to_visit[0])
+                        checkpoint_status.info(f"Checkpoint saved. Resume from: {urls_to_visit[0]}")
+                        st.info("Maximum image limit reached. Stopping scraping.")
+                        break
+                
                 current_url = urls_to_visit.pop(0)
                 
                 # Skip if already visited
@@ -169,32 +207,55 @@ class ProductScraper:
                     
                     urls_to_visit.extend(new_urls)
                     
-                except URLError as e:
-                    self.error_handler.handle_url_error(current_url, e)
-                    continue
-                except Exception as e:
-                    self.error_handler.handle_api_error(self.model, e)
-                    continue
-                
-                # Update progress
-                total_urls = len(self.visited_urls) + len(urls_to_visit)
-                progress = len(self.visited_urls) / total_urls if total_urls > 0 else 1.0
-                progress_bar.progress(progress)
-        
-        # Show error summary
-        error_summary = self.error_handler.get_error_summary()
-        if error_summary['total_errors'] > 0:
-            st.warning(f"Completed with {error_summary['total_errors']} errors. Check logs for details.")
-            
-        return self.raw_products
+                    # Update rate limiter status
+                    self.rate_limiter.increment_counter()
+                    limiter_status = self.rate_limiter.get_status()
+                    rate_limit_status.text(
+                        f"Processed products: {limiter_status['processed_images']} | "
+                        f"Remaining: {limiter_status['images_remaining']} | "
+                        f"Next reset: {limiter_status['next_reset'].strftime('%H:%M:%S')}"
+                    )
 
+                    # Save checkpoint periodically (e.g., every 10 URLs)
+                    if len(self.raw_products) % 10 == 0:
+                        self._save_checkpoint(current_url)
+                        checkpoint_status.info(f"Checkpoint saved. Current URL: {current_url}")
+                    
+                except Exception as e:
+                    # Save checkpoint on error
+                    self._save_checkpoint(current_url)
+                    checkpoint_status.error(f"Error occurred. Checkpoint saved at: {current_url}")
+                    raise e
+
+        except Exception as e:
+            # Process any collected data before raising exception
+            if self.raw_products:
+                pipeline = DataPreparationPipeline(self.raw_products)
+                df = pipeline.prepare_data()
+                if not df.empty:
+                    excel_buffer = io.BytesIO()
+                    df.to_excel(excel_buffer, index=False)
+                    st.download_button(
+                        label="Download Excel",
+                        data=excel_buffer.getvalue(),
+                        file_name="scraped_products.xlsx",
+                        mime="application/vnd.ms-excel"
+                    )
+            raise e
+
+        return self.raw_products
+    
     def _scrape_page(self, url: str) -> Optional[ScrapedProduct]:
         """Scrape single page and return raw data"""
         response = requests.get(url)
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Collect all page data
-        images = [img['src'] for img in soup.find_all('img') if 'src' in img.attrs]
+        # Collect all page data with normalized URLs
+        images = [
+            self._normalize_url(img['src']) 
+            for img in soup.find_all('img') 
+            if 'src' in img.attrs
+        ]
         text = soup.get_text(separator='\n', strip=True)
 
         # Basic metadata extraction
@@ -213,7 +274,7 @@ class ProductScraper:
             url=url,
             title=title,
             description=description,
-            all_images=images,
+            all_images=images[:10],
             page_text=text,
             metadata={
                 'headers': [h.text for h in soup.find_all(['h1', 'h2', 'h3'])],
@@ -231,60 +292,94 @@ class ProductScraper:
             except:
                 continue
         return structured_data
-        
+
+    def _normalize_url(self, url: str) -> str:
+        """Ensure URL has proper protocol"""
+        if url.startswith('//'):
+            return f'https:{url}'
+        elif not url.startswith(('http://', 'https://')):
+            return f'https://{url}'
+        return url
 
 def display_scraper_page():
     st.title("Product Scraper")
     
-    # Model selection
-    model_options = ["gemini", "gpt-4o", "grok"]  # Match exact names
-    selected_model = st.selectbox("Select LLM Model", model_options)
-
+    # Add rate limit settings
+    col1, col2 = st.columns(2)
+    with col1:
+        max_images = st.number_input("Maximum products to process", min_value=1, value=10)
+    with col2:
+        if st.button("Clear Checkpoint"):
+            CheckpointManager().clear_checkpoint()
+            st.success("Checkpoint cleared")
+    
     # URL input
     brand_url = st.text_input("Enter Brand URL")
+    
+    # Load previous checkpoint
+    checkpoint = CheckpointManager().load_checkpoint()
+    if checkpoint:
+        st.info(f"Previous session found from {checkpoint.get('timestamp')}")
+        st.info(f"Resume from URL: {checkpoint.get('last_url')}")
+        if brand_url and brand_url != checkpoint.get('brand_url'):
+            st.warning("Warning: Entered URL differs from checkpoint URL")
     
     if st.button("Start Scraping"):
         if brand_url:
             try:
-                # Initialize scraper
-                scraper = ProductScraper(brand_url, selected_model)
+                # Initialize scraper with rate limits
+                scraper = ProductScraper(brand_url)
+                scraper.rate_limiter = RateLimiter(
+                    max_images=max_images
+                )
                 
                 # Step 1: Collect raw data
                 raw_products = scraper.scrape_site()
                 
-                # Show intermediate results
-                st.subheader("Initial Data Collection")
-                st.write(f"Found {len(raw_products)} potential product pages")
-                
-                # Allow user to review raw data
-                if st.checkbox("Show raw data"):
-                    st.json([{
-                        'url': p.url,
-                        'title': p.title,
-                        'image_count': len(p.all_images)
-                    } for p in raw_products])
-                
-                # Step 2: Process and analyze data
-                pipeline = DataPreparationPipeline(raw_products, selected_model)
-                df = pipeline.prepare_data()
-                
-                # Show final results
-                st.subheader("Processed Results")
-                st.write(f"Processed {len(df)} verified products")
-                st.dataframe(df)
-                
-                # Provide download option
-                if not df.empty:
-                    excel_buffer = io.BytesIO()
-                    df.to_excel(excel_buffer, index=False)
-                    st.download_button(
-                        label="Download Excel File",
-                        data=excel_buffer.getvalue(),
-                        file_name="scraped_products.xlsx",
-                        mime="application/vnd.ms-excel"
-                    )
+                # Ensure raw_products is not None before checking length
+                if raw_products is not None:
+                    # Show intermediate results
+                    with st.expander("Initial Data Collection", expanded=True):
+                        st.write(f"Found {len(raw_products)} potential product pages")
+                        
+                        # Display platform info if detected
+                        if scraper.platform:
+                            st.info(f"Detected platform: {scraper.platform}")
+                        
+                        # Show error summary if any
+                        error_summary = scraper.error_handler.get_error_summary()
+                        if error_summary['total_errors'] > 0:
+                            st.warning("Scraping completed with errors:", icon="⚠️")
+                            st.json(error_summary)
+                    
+                    # Only proceed with pipeline if we have products
+                    if raw_products:
+                        # Step 2: Process and analyze data
+                        pipeline = DataPreparationPipeline(raw_products)
+                        df = pipeline.prepare_data()
+                        
+                        # Show final results
+                        with st.expander("Processed Results", expanded=True):
+                            st.write(f"Processed {len(df)} verified products")
+                            st.dataframe(df)
+                        
+                        # Download options
+                        if not df.empty:
+                            excel_buffer = io.BytesIO()
+                            df.to_excel(excel_buffer, index=False)
+                            st.download_button(
+                                label="Download Excel",
+                                data=excel_buffer.getvalue(),
+                                file_name="scraped_products.xlsx",
+                                mime="application/vnd.ms-excel"
+                            )
+                    else:
+                        st.warning("No products found during scraping.")
+                else:
+                    st.error("Scraping failed to return any results.")
             
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
+                st.exception(e)
         else:
             st.error("Please enter a brand URL")

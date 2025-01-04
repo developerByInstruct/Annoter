@@ -12,441 +12,422 @@ import json
 import streamlit as st
 import httpx
 
+# llm_analyzers.py
 
 class LLMAnalyzer:
-    def __init__(self, model_name: str):
-        self.model_name = model_name
+    def __init__(self):
         self._init_client()
         
     def _init_client(self):
-        """Initialize appropriate client based on model"""
-        if self.model_name == "gemini":
+        try:
+            # Initialize Gemini
             genai.configure(api_key=GOOGLE_API_KEY)
-        elif self.model_name == "gpt-4o":
-            openai_client = OpenAI(api_key=OPENAI_API_KEY)
-        elif self.model_name == "grok":
-            xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
             
-    def _download_image(self, image_url: str) -> Optional[Image.Image]:
-        """Download and verify image"""
-        try:
-            response = requests.get(image_url, timeout=10)
-            response.raise_for_status()
-            return Image.open(BytesIO(response.content))
-        except Exception:
-            return None
+            # Initialize OpenAI
+            self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
             
-    def _prepare_images(self, image_urls: List[str]) -> List[Image.Image]:
-        """Download and prepare multiple images"""
-        images = []
-        for url in image_urls:
-            img = self._download_image(url)
-            if img:
-                images.append(img)
-        return images
+            # Initialize XAI
+            self.xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
+            
+            st.success("All LLM clients initialized successfully")
+        except Exception as e:
+            st.error(f"Error initializing LLM clients: {str(e)}")
 
-    def analyze_product(self, product_data: Dict) -> Dict:
-        """Base method for product analysis"""
-        return {
-            "is_product": False,
-            "product_image": "",
-            "lifestyle_image": "",
-            "confidence": 0
-        }
-
-class GeminiAnalyzer(LLMAnalyzer):
-    def analyze_product(self, product_data: Dict) -> Dict:
-        """Unified product analysis using Gemini"""
-        prompt = """Analyze this product page content and images to identify:
-        1. If this is a valid product page
-        2. The main product image URL (clear, isolated product shot)
-        3. A lifestyle/context image URL if present (showing product in use)
+    def analyze_images(self, images: List[str], page_text: str = "") -> Dict:
+        """Try all models in sequence until successful"""
+        st.write("Starting image analysis...")
+        st.write(f"Number of images to analyze: {len(images)}")
         
-        Return ONLY this JSON format:
-        {
-            "is_product": boolean,
-            "product_image": "exact URL of best product image",
-            "lifestyle_image": "exact URL of best lifestyle image",
-            "confidence": float between 0-1
-        }"""
-
-        try:
-            # Prepare image data
-            image_data = []
-            for url in product_data['all_images']:
-                try:
-                    response = httpx.get(url)
-                    response.raise_for_status()
-                    img_base64 = base64.b64encode(response.content).decode('utf-8')
-                    image_data.append({
-                        'mime_type': 'image/jpeg',
-                        'data': img_base64
-                    })
-                except Exception as e:
-                    st.error(f"Error processing image {url}: {str(e)}")
+        errors = []
+        max_retries = 3
+        retry_count = 0
+        
+        # Normalize URLs and validate images before processing
+        normalized_images = []
+        for url in images:
+            try:
+                if not self._is_valid_image_url(url):
+                    st.warning(f"Skipping invalid image URL: {url}")
                     continue
+                    
+                normalized_url = (
+                    url if url.startswith(('http://', 'https://')) 
+                    else f'https:{url}' if url.startswith('//') 
+                    else f'https://{url}'
+                )
+                # Test if image is accessible and valid
+                response = httpx.get(normalized_url)
+                response.raise_for_status()
+                
+                # Verify content type is image
+                content_type = response.headers.get('content-type', '')
+                if not content_type.startswith('image/'):
+                    st.warning(f"Skipping non-image URL: {url}")
+                    continue
+                    
+                normalized_images.append(normalized_url)
+                st.write(f"✓ Valid image: {normalized_url}")
+            except Exception as e:
+                st.error(f"Invalid image URL {url}: {str(e)}")
+        
+        if not normalized_images:
+            st.error("No valid images found to analyze")
+            return {
+                'product_images': [],
+                'lifestyle_images': [],
+                'confidence': 0.0
+            }
 
-            if not image_data:
-                return {
-                    "is_product": False,
-                    "product_image": "",
-                    "lifestyle_image": "",
-                    "confidence": 0
-                }
-
-            model = genai.GenerativeModel("gemini-1.5-flash")
-
-            # Feed images, URLs and text content to the model
-            content = [
-                prompt,
-                *image_data,
-                f"Available image URLs: {json.dumps(product_data['all_images'])}",
-                f"Page text: {product_data['page_text'][:1000]}"  # First 1000 chars of text
+        while retry_count < max_retries:
+            st.write(f"Analysis attempt {retry_count + 1}/{max_retries}")
+            
+            # Try each model in sequence
+            models = [
+                ('Gemini', self._analyze_with_gemini),
+                ('GPT-4', self._analyze_with_gpt4),
+                ('XAI', self._analyze_with_xai)
             ]
-
-            response = model.generate_content(content)
+            all_rate_limited = True
             
-            # Clean up response and parse JSON
-            response_text = response.text.replace('```json', '').replace('```', '').strip()
-            
-            try:
-                analysis = json.loads(response_text)
-                
-                # Validate URLs exist in original list
-                if analysis.get('product_image') and analysis['product_image'] not in product_data['all_images']:
-                    analysis['product_image'] = ""
-                if analysis.get('lifestyle_image') and analysis['lifestyle_image'] not in product_data['all_images']:
-                    analysis['lifestyle_image'] = ""
-                    
-                st.write(f"Analysis result: {analysis}")
-                return analysis
-                
-            except json.JSONDecodeError as e:
-                st.error(f"JSON decode error: {str(e)}")
-                return {
-                    "is_product": False,
-                    "product_image": "",
-                    "lifestyle_image": "",
-                    "confidence": 0
-                }
-
-        except Exception as e:
-            st.error(f"Error in Gemini analysis: {str(e)}")
-            return {
-                "is_product": False,
-                "product_image": "",
-                "lifestyle_image": "",
-                "confidence": 0
-            }
-
-class GPT4OAnalyzer(LLMAnalyzer):
-    def analyze_product(self, product_data: Dict) -> Dict:
-        """Unified product analysis using GPT-4V"""
-        prompt = """Analyze this product page content and images to identify:
-        1. If this is a valid product page
-        2. The main product image URL (clear, isolated product shot)
-        3. A lifestyle/context image URL if present (showing product in use)
-        
-        Return ONLY this JSON format:
-        {
-            "is_product": boolean,
-            "product_image": "exact URL of best product image",
-            "lifestyle_image": "exact URL of best lifestyle image",
-            "confidence": float between 0-1
-        }"""
-        
-        try:
-            # Prepare image data
-            image_data = []
-            for url in product_data['all_images']:
+            for model_name, analyze_func in models:
                 try:
-                    response = httpx.get(url)
-                    response.raise_for_status()
-                    img_base64 = base64.b64encode(response.content).decode('utf-8')
-                    image_data.append({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{img_base64}"
-                        }
-                    })
+                    st.write(f"Attempting analysis with {model_name}...")
+                    result = analyze_func(normalized_images, page_text)
+                    
+                    if result:
+                        st.write(f"Analysis successful with {model_name}")
+                        st.write("Results:", result)
+                        
+                        # Check image limit after successful analysis
+                        if hasattr(st.session_state, 'processed_images'):
+                            new_images = len(result['product_images']) + len(result['lifestyle_images'])
+                            st.session_state.processed_images += new_images
+                        else:
+                            st.session_state.processed_images = len(result['product_images']) + len(result['lifestyle_images'])
+                        
+                        if result['product_images'] or result['lifestyle_images']:
+                            return result
+                            
+                    all_rate_limited = False
                 except Exception as e:
-                    st.error(f"Error processing image {url}: {str(e)}")
+                    error_message = str(e).lower()
+                    error_desc = str(e)
+                    
+                    # Add more detailed error logging
+                    if "rate limit" in error_message or "quota exceeded" in error_message:
+                        st.warning(f"{model_name} rate limit reached: {error_desc}")
+                    else:
+                        st.error(f"{model_name} analysis failed: {error_desc}")
+                        all_rate_limited = False
+                    
+                    errors.append(f"{model_name}: {error_desc}")
                     continue
             
-            if not image_data:
-                return {
-                    "is_product": False,
-                    "product_image": "",
-                    "lifestyle_image": "",
-                    "confidence": 0
-                }
-            
-            response = openai_client.chat.completions.create(
-                model="gpt-4-vision-preview",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        *image_data,
-                        {"type": "text", "text": f"Available image URLs: {json.dumps(product_data['all_images'])}"},
-                        {"type": "text", "text": f"Page text: {product_data['page_text'][:1000]}"}
-                    ]
-                }],
-                max_tokens=1000,
-                response_format={"type": "json_object"}
-            )
-            
-            try:
-                analysis = json.loads(response.choices[0].message.content)
-                
-                # Validate URLs exist in original list
-                if analysis.get('product_image') and analysis['product_image'] not in product_data['all_images']:
-                    analysis['product_image'] = ""
-                if analysis.get('lifestyle_image') and analysis['lifestyle_image'] not in product_data['all_images']:
-                    analysis['lifestyle_image'] = ""
-                    
-                st.write(f"Analysis result: {analysis}")
-                return analysis
-                
-            except json.JSONDecodeError as e:
-                st.error(f"JSON decode error: {str(e)}")
-                return {
-                    "is_product": False,
-                    "product_image": "",
-                    "lifestyle_image": "",
-                    "confidence": 0
-                }
-            
-        except Exception as e:
-            st.error(f"Error in GPT-4V analysis: {str(e)}")
-            return {
-                "is_product": False,
-                "product_image": "",
-                "lifestyle_image": "",
-                "confidence": 0
-            }
-
-class XAIAnalyzer(LLMAnalyzer):
-    def analyze_product(self, product_data: Dict) -> Dict:
-        """Unified product analysis using Grok"""
-        prompt = """Analyze this product page content and images to identify:
-        1. If this is a valid product page
-        2. The main product image URL (clear, isolated product shot)
-        3. A lifestyle/context image URL if present (showing product in use)
+            if all_rate_limited:
+                retry_count += 1
+                if retry_count < max_retries:
+                    pause_message = st.empty()
+                    for remaining in range(180, 0, -1):
+                        minutes = remaining // 60
+                        seconds = remaining % 60
+                        pause_message.warning(
+                            f"All models rate limited. Pausing for {minutes:02d}:{seconds:02d} "
+                            f"before retry {retry_count}/{max_retries}"
+                        )
+                        time.sleep(1)
+                    pause_message.empty()
+                else:
+                    st.error("Maximum retries reached due to rate limits")
+                    break
+            else:
+                break
         
-        Return ONLY this JSON format:
-        {
-            "is_product": boolean,
-            "product_image": "exact URL of best product image",
-            "lifestyle_image": "exact URL of best lifestyle image",
-            "confidence": float between 0-1
-        }"""
-        
-        try:
-            # Prepare image data
-            image_data = []
-            for url in product_data['all_images']:
-                try:
-                    response = httpx.get(url)
-                    response.raise_for_status()
-                    img_base64 = base64.b64encode(response.content).decode('utf-8')
-                    image_data.append({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{img_base64}"
-                        }
-                    })
-                except Exception as e:
-                    st.error(f"Error processing image {url}: {str(e)}")
-                    continue
-            
-            if not image_data:
-                return {
-                    "is_product": False,
-                    "product_image": "",
-                    "lifestyle_image": "",
-                    "confidence": 0
-                }
-            
-            response = xai_client.chat.completions.create(
-                model="grok-2-vision-1212",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        *image_data,
-                        {"type": "text", "text": f"Available image URLs: {json.dumps(product_data['all_images'])}"},
-                        {"type": "text", "text": f"Page text: {product_data['page_text'][:1000]}"}
-                    ]
-                }],
-                max_tokens=1000,
-                response_format={"type": "json_object"}
-            )
-            
-            try:
-                analysis = json.loads(response.choices[0].message.content)
+        st.error("All image analysis attempts failed")
+        if errors:
+            st.error("Errors encountered:")
+            for error in errors:
+                st.error(error)
                 
-                # Validate URLs exist in original list
-                if analysis.get('product_image') and analysis['product_image'] not in product_data['all_images']:
-                    analysis['product_image'] = ""
-                if analysis.get('lifestyle_image') and analysis['lifestyle_image'] not in product_data['all_images']:
-                    analysis['lifestyle_image'] = ""
-                    
-                st.write(f"Analysis result: {analysis}")
-                return analysis
-                
-            except json.JSONDecodeError as e:
-                st.error(f"JSON decode error: {str(e)}")
-                return {
-                    "is_product": False,
-                    "product_image": "",
-                    "lifestyle_image": "",
-                    "confidence": 0
-                }
-            
-        except Exception as e:
-            st.error(f"Error in Grok analysis: {str(e)}")
-            return {
-                "is_product": False,
-                "product_image": "",
-                "lifestyle_image": "",
-                "confidence": 0
-            }
-    def analyze_product(self, product_data: Dict) -> Dict:
-        """Analyze product using Grok"""
-        prompt = """Analyze these product images and respond with a JSON object identifying:
-        - The main product image URL (should be a clear, isolated product shot)
-        - A lifestyle/context image URL if present (should show product being worn/used)
-        
-        Return ONLY this JSON format with the actual image URLs from the input:
-        {
-            "is_product": boolean,
-            "product_image": "exact URL of best product image",
-            "lifestyle_image": "exact URL of best lifestyle image",
-            "confidence": float between 0-1
-        }"""
-        
-        try:
-            # Prepare image data
-            image_data = []
-            for url in product_data['all_images']:
-                try:
-                    response = httpx.get(url)
-                    response.raise_for_status()
-                    img_base64 = base64.b64encode(response.content).decode('utf-8')
-                    image_data.append({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{img_base64}"
-                        }
-                    })
-                except Exception as e:
-                    st.error(f"Error processing image {url}: {str(e)}")
-                    continue
-            
-            if not image_data:
-                return {
-                    "is_product": False,
-                    "product_image": "",
-                    "lifestyle_image": "",
-                    "confidence": 0
-                }
-            
-            response = xai_client.chat.completions.create(
-                model="grok-2-vision-1212",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        *image_data,
-                        {"type": "text", "text": f"Available image URLs: {json.dumps(product_data['all_images'])}"}
-                    ]
-                }],
-                max_tokens=1000,
-                response_format={"type": "json_object"}
-            )
-            
-            try:
-                analysis = json.loads(response.choices[0].message.content)
-                
-                # Validate URLs exist in original list
-                if analysis.get('product_image') and analysis['product_image'] not in product_data['all_images']:
-                    analysis['product_image'] = ""
-                if analysis.get('lifestyle_image') and analysis['lifestyle_image'] not in product_data['all_images']:
-                    analysis['lifestyle_image'] = ""
-                    
-                st.write(f"Parsed analysis: {analysis}")
-                return analysis
-                
-            except json.JSONDecodeError as e:
-                st.error(f"JSON decode error: {str(e)}")
-                return {
-                    "is_product": False,
-                    "product_image": "",
-                    "lifestyle_image": "",
-                    "confidence": 0
-                }
-            
-        except Exception as e:
-            st.error(f"Error in Grok analysis: {str(e)}")
-            return {
-                "is_product": False,
-                "product_image": "",
-                "lifestyle_image": "",
-                "confidence": 0
-            }
-    def analyze_product(self, product_data: Dict) -> Dict:
-        """Analyze product using GPT-4O"""
-        prompt = """Analyze this product page content and images to:
-        1. Confirm if this is a product page
-        2. Identify the primary product image
-        3. Find a lifestyle/context image if available
-        4. Rate confidence in identification
-        
-        Return JSON format:
-        {
-            "is_product": boolean,
-            "product_image": "URL",
-            "lifestyle_image": "URL",
-            "confidence": float (0-1)
+        return {
+            'product_images': [],
+            'lifestyle_images': [],
+            'confidence': 0.0
         }
-        """
+
+    def _is_valid_image_url(self, url: str) -> bool:
+        """Check if URL is likely to be a valid image"""
+        # Ignore tracking pixels and social media scripts
+        invalid_patterns = [
+            'facebook.com/tr',
+            'google-analytics.com',
+            'analytics',
+            'tracking',
+            'pixel',
+            'script'
+        ]
+        
+        # Check for common image extensions
+        valid_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+        
+        # Return False if URL matches any invalid pattern
+        if any(pattern in url.lower() for pattern in invalid_patterns):
+            return False
+            
+        # Return True if URL has valid image extension
+        return any(url.lower().endswith(ext) for ext in valid_extensions)
+
+    def _validate_base64(self, base64_string: str) -> bool:
+        """Validate base64 encoded image data"""
+        try:
+            # Check if it's a valid base64 string
+            if not base64_string:
+                return False
+                
+            # Attempt to decode
+            base64.b64decode(base64_string)
+            return True
+        except:
+            return False
+
+    def _analyze_with_gemini(self, images: List[str], page_text: str) -> Dict:
+        st.write("Preparing Gemini analysis...")
+        
+        # Initialize Gemini model with correct model name
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        # Prepare images and limit total payload size
+        total_size = 0
+        image_parts = []
+        max_payload_size = 20 * 1024 * 1024  # 20MB limit
+        
+        for url in images[:10]:  # Limit to first 10 images
+            try:
+                response = httpx.get(url, timeout=10)
+                response.raise_for_status()
+                image_data = response.content
+                
+                # Check size before adding
+                total_size += len(image_data)
+                if total_size > max_payload_size:
+                    st.warning(f"Skipping {url} - would exceed payload size limit")
+                    continue
+                    
+                encoded_image = base64.b64encode(image_data).decode('utf-8')
+                image_parts.append({
+                    'mime_type': 'image/jpeg',
+                    'data': encoded_image
+                })
+                st.write(f"✓ Added image: {url}")
+            except Exception as e:
+                st.error(f"Error processing image {url}: {str(e)}")
+                continue
+
+        if not image_parts:
+            raise Exception("No valid images could be processed")
+
+        prompt = """Analyze these product images and classify them as either product or lifestyle images.
+        
+        Product images should:
+        - Have neutral/solid background
+        - Show whole product
+        - Have no humans/text (except on product)
+        - Have clear lighting
+        
+        Lifestyle images should:
+        - Show product in real-life setting
+        - Can include humans
+        - Have natural lighting/environment
+        
+        Return JSON with:
+        {
+            "product_images": ["url1", "url2"...],
+            "lifestyle_images": ["url1", "url2"...],
+            "confidence": float between 0-1
+        }"""
+
+        # Combine prompt with images
+        content = [prompt] + image_parts
+        content.append(f"Image URLs: {json.dumps(images)}")
         
         try:
-            # Prepare image data
-            image_data = []
-            for url in product_data['all_images']:
-                image = self._download_image(url)
-                if image:
-                    buffered = BytesIO()
-                    image.save(buffered, format="JPEG")
-                    img_str = base64.b64encode(buffered.getvalue()).decode()
-                    image_data.append({
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{img_str}"
-                        }
-                    })
+            response = model.generate_content(content)
+            st.write("Gemini API response received")
             
-            response = xai_client.chat.completions.create(
-                model="grok-2-vision-1212",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        *image_data,
-                        {"type": "text", "text": product_data['page_text']}
-                    ]
-                }],
-                max_tokens=1000
-            )
+            # Clean up the response text
+            response_text = response.text
+            # Remove markdown code block indicators and 'json' label if present
+            response_text = response_text.replace('```json', '').replace('```', '').strip()
             
-            return json.loads(response.choices[0].message.content)
-            
+            try:
+                result = json.loads(response_text)
+                if not isinstance(result, dict):
+                    raise ValueError("Response is not a dictionary")
+                    
+                # Validate response format and clean up arrays
+                required_keys = ["product_images", "lifestyle_images", "confidence"]
+                if not all(key in result for key in required_keys):
+                    raise ValueError("Response missing required keys")
+                
+                # Ensure arrays are properly formatted (no numeric indices)
+                if isinstance(result["product_images"], dict):
+                    result["product_images"] = list(result["product_images"].values())
+                if isinstance(result["lifestyle_images"], dict):
+                    result["lifestyle_images"] = list(result["lifestyle_images"].values())
+                    
+                # Remove duplicates while preserving order
+                result["product_images"] = list(dict.fromkeys(result["product_images"]))
+                result["lifestyle_images"] = list(dict.fromkeys(result["lifestyle_images"]))
+                
+                return result
+                
+            except json.JSONDecodeError:
+                st.error(f"Invalid JSON response: {response_text}")
+                raise
+                
         except Exception as e:
-            return {
-                "is_product": False,
-                "product_image": "",
-                "lifestyle_image": "",
-                "confidence": 0
-            }
+            st.error(f"Gemini API error: {str(e)}")
+            raise
+
+    def _analyze_with_gpt4(self, images: List[str], page_text: str) -> Dict:
+        prompt = """Analyze these product images according to the following criteria:
+
+Product Image Criteria:
+- Must be isolated with transparent/solid color neutral background
+- No humans, text, or graphics (except on product)
+- No artifacts or extreme aspect ratios
+- Not in real-life setting
+- Show whole product
+- Clear lighting showing accurate colors
+
+Lifestyle Image Criteria:
+- Shows product in real-life setting/use
+- Can include humans and multiple product instances
+- Natural environment and lighting
+- No artificial artifacts
+- Shows whole product
+
+Classify each image as either product or lifestyle image based on these criteria.
+Return JSON with two lists of up to 5 URLs each:
+{
+    "product_images": ["url1", "url2"...],
+    "lifestyle_images": ["url1", "url2"...],
+    "confidence": float between 0-1
+}"""
+        
+        image_data = []
+        for url in images:
+            try:
+                response = httpx.get(url)
+                response.raise_for_status()
+                
+                # Verify content type
+                if not response.headers.get('content-type', '').startswith('image/'):
+                    continue
+                    
+                img_base64 = base64.b64encode(response.content).decode('utf-8')
+                
+                # Validate base64 before adding
+                if not self._validate_base64(img_base64):
+                    continue
+                    
+                image_data.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{img_base64}"
+                    }
+                })
+            except Exception as e:
+                st.error(f"Error processing image {url}: {str(e)}")
+                continue
+
+        if not image_data:
+            raise Exception("No valid images could be processed")
+
+        response = self.openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    *image_data,
+                    {"type": "text", "text": f"Image URLs: {json.dumps(images)}"},
+                    {"type": "text", "text": f"Page text: {page_text[:1000]}"}
+                ]
+            }],
+            max_tokens=1000,
+            response_format={"type": "json_object"}
+        )
+        
+        return json.loads(response.choices[0].message.content)
+
+    def _analyze_with_xai(self, images: List[str], page_text: str) -> Dict:
+        prompt = """Analyze these product images according to the following criteria:
+
+Product Image Criteria:
+- Must be isolated with transparent/solid color neutral background
+- No humans, text, or graphics (except on product)
+- No artifacts or extreme aspect ratios
+- Not in real-life setting
+- Show whole product
+- Clear lighting showing accurate colors
+
+Lifestyle Image Criteria:
+- Shows product in real-life setting/use
+- Can include humans and multiple product instances
+- Natural environment and lighting
+- No artificial artifacts
+- Shows whole product
+
+Classify each image as either product or lifestyle image based on these criteria.
+Return JSON with two lists of up to 5 URLs each:
+{
+    "product_images": ["url1", "url2"...],
+    "lifestyle_images": ["url1", "url2"...],
+    "confidence": float between 0-1
+}"""
+        
+        image_data = []
+        for url in images:
+            try:
+                response = httpx.get(url)
+                response.raise_for_status()
+                
+                # Verify content type
+                if not response.headers.get('content-type', '').startswith('image/'):
+                    continue
+                    
+                img_base64 = base64.b64encode(response.content).decode('utf-8')
+                
+                # Validate base64 before adding
+                if not self._validate_base64(img_base64):
+                    continue
+                    
+                image_data.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{img_base64}"
+                    }
+                })
+            except Exception as e:
+                st.error(f"Error processing image {url}: {str(e)}")
+                continue
+
+        if not image_data:
+            raise Exception("No valid images could be processed")
+
+        response = self.xai_client.chat.completions.create(
+            model="grok-2-vision-1212",
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    *image_data,
+                    {"type": "text", "text": f"Image URLs: {json.dumps(images)}"},
+                    {"type": "text", "text": f"Page text: {page_text[:1000]}"}
+                ]
+            }],
+            max_tokens=1000,
+            response_format={"type": "json_object"}
+        )
+        
+        return json.loads(response.choices[0].message.content)
