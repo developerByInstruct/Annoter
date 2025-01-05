@@ -1,9 +1,10 @@
 # error_handlers.py
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 import re
 from urllib.parse import urlparse
 import logging
+from bs4 import BeautifulSoup
 
 class ScraperError(Exception):
     """Base exception class for scraper errors"""
@@ -155,3 +156,29 @@ class PlatformAdapter:
             'magento': 1.0
         }
         return delays.get(self.platform, 0.5)
+
+    def get_platform_context(self, soup: BeautifulSoup) -> Dict:
+        """Get platform-specific context for URL analysis"""
+        context = {}
+        
+        if self.platform == 'shopify':
+            context['platform'] = 'shopify'
+            context['product_indicators'] = [
+                soup.find('div', {'class': 'product-single'}),
+                soup.find('div', {'id': 'ProductSection'}),
+                soup.find('div', {'class': 'product-template'})
+            ]
+        elif self.platform == 'woocommerce':
+            context['platform'] = 'woocommerce'
+            context['product_indicators'] = [
+                soup.find('div', {'class': 'product'}),
+                soup.find('div', {'class': 'woocommerce-product-gallery'})
+            ]
+        
+        # Convert BeautifulSoup elements to strings for JSON serialization
+        context['product_indicators'] = [
+            str(indicator) if indicator else None 
+            for indicator in context.get('product_indicators', [])
+        ]
+        
+        return context

@@ -2,10 +2,7 @@
 
 import google.generativeai as genai
 from openai import OpenAI
-from PIL import Image
-import requests
-from io import BytesIO
-from typing import Dict, List, Optional
+from typing import Dict, List
 import base64
 from config import OPENAI_API_KEY, GOOGLE_API_KEY, GROK_API_KEY
 import json
@@ -289,6 +286,38 @@ class LLMAnalyzer:
             raise
 
     def _analyze_with_gpt4(self, images: List[str], page_text: str) -> Dict:
+        st.write("Preparing GPT-4O analysis...")
+                
+        # Prepare images and limit total payload size
+        total_size = 0
+        image_parts = []
+        max_payload_size = 20 * 1024 * 1024  # 20MB limit
+        
+        for url in images[:10]:  # Limit to first 10 images
+            try:
+                response = httpx.get(url, timeout=10)
+                response.raise_for_status()
+                image_data = response.content
+                
+                # Check size before adding
+                total_size += len(image_data)
+                if total_size > max_payload_size:
+                    st.warning(f"Skipping {url} - would exceed payload size limit")
+                    continue
+                    
+                encoded_image = base64.b64encode(image_data).decode('utf-8')
+                image_parts.append({
+                    'mime_type': 'image/jpeg',
+                    'data': encoded_image
+                })
+                st.write(f"✓ Added image: {url}")
+            except Exception as e:
+                st.error(f"Error processing image {url}: {str(e)}")
+                continue
+
+        if not image_parts:
+            raise Exception("No valid images could be processed")        
+        
         prompt = """Analyze these product images according to the following criteria:
 
 Product Image Criteria:
@@ -357,10 +386,46 @@ Return JSON with two lists of up to 5 URLs each:
             max_tokens=1000,
             response_format={"type": "json_object"}
         )
+
+        # Clean up the response text
+        response_text = response.choices[0].message.content
+        # Remove markdown code block indicators and 'json' label if present
+        response_text = response_text.replace('```json', '').replace('```', '').strip()
         
-        return json.loads(response.choices[0].message.content)
+        return json.loads(response_text)
 
     def _analyze_with_xai(self, images: List[str], page_text: str) -> Dict:
+        st.write("Preparing Grok analysis...")
+                
+        # Prepare images and limit total payload size
+        total_size = 0
+        image_parts = []
+        max_payload_size = 20 * 1024 * 1024  # 20MB limit
+        
+        for url in images[:10]:  # Limit to first 10 images
+            try:
+                response = httpx.get(url, timeout=10)
+                response.raise_for_status()
+                image_data = response.content
+                
+                # Check size before adding
+                total_size += len(image_data)
+                if total_size > max_payload_size:
+                    st.warning(f"Skipping {url} - would exceed payload size limit")
+                    continue
+                    
+                encoded_image = base64.b64encode(image_data).decode('utf-8')
+                image_parts.append({
+                    'mime_type': 'image/jpeg',
+                    'data': encoded_image
+                })
+                st.write(f"✓ Added image: {url}")
+            except Exception as e:
+                st.error(f"Error processing image {url}: {str(e)}")
+                continue
+
+        if not image_parts:
+            raise Exception("No valid images could be processed")          
         prompt = """Analyze these product images according to the following criteria:
 
 Product Image Criteria:
@@ -430,4 +495,333 @@ Return JSON with two lists of up to 5 URLs each:
             response_format={"type": "json_object"}
         )
         
-        return json.loads(response.choices[0].message.content)
+        # Clean up the response text
+        response_text = response.choices[0].message.content
+        # Remove markdown code block indicators and 'json' label if present
+        response_text = response_text.replace('```json', '').replace('```', '').strip()
+        
+        return json.loads(response_text)
+        
+class URLAnalyzer:
+    def __init__(self):
+        self._init_client()
+
+    def _init_client(self):
+        try:
+            # Initialize Gemini
+            genai.configure(api_key=GOOGLE_API_KEY)
+            
+            # Initialize OpenAI
+            self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
+            
+            # Initialize XAI
+            self.xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
+            
+            st.success("All LLM clients initialized successfully")
+        except Exception as e:
+            st.error(f"Error initializing LLM clients: {str(e)}")
+    
+    def analyze_urls(self, urls: List[str], context: Dict) -> Dict[str, List[str]]:
+        """Try different models to analyze URLs"""
+        analyzers = [
+            self._analyze_with_gemini,
+            self._analyze_with_gpt4,
+            self._analyze_with_xai
+        ]
+
+        normalized_urls = [
+            url if url.startswith(('http://', 'https://')) 
+            else f'https:{url}' if url.startswith('//') 
+            else f'https://{url}'
+            for url in urls
+        ]
+        
+        for analyzer in analyzers:
+            try:
+                result = analyzer(normalized_urls, context)
+                if result:
+                    return result
+            except Exception as e:
+                st.warning(f"Analyzer failed: {str(e)}")
+                continue
+                
+        return {
+            'product_pages': [],
+            'pagination_links': [],
+            'category_pages': []
+        }
+
+    def _analyze_with_gemini(self, urls: List[str], context: Dict) -> Dict[str, List[str]]:
+        prompt = """Analyze these URLs and page context to classify them into three categories:
+        1. Product pages (individual product details)
+        2. Pagination links (next/previous page links)
+        3. Category/filter pages
+        
+        Return JSON with:
+        {
+            "product_pages": ["url1", "url2"],
+            "pagination_links": ["url1", "url2"],
+            "category_pages": ["url1", "url2"]
+        }"""
+        
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        # Fix the content format for Gemini
+        response = model.generate_content([{
+            "text": f"{prompt}\n\nURLs to analyze: {json.dumps(urls)}\nContext: {json.dumps(context)}"
+        }])
+
+        # Clean up the response text
+        response_text = response.text
+        # Remove markdown code block indicators and 'json' label if present
+        response_text = response_text.replace('```json', '').replace('```', '').strip()
+
+        
+        try:
+            return json.loads(response_text)
+        except json.JSONDecodeError:
+            # Fallback response if parsing fails
+            return {
+                "product_pages": [],
+                "pagination_links": [],
+                "category_pages": []
+            }
+
+    def _analyze_with_gpt4(self, urls: List[str], context: Dict) -> Dict[str, List[str]]:
+        prompt = """Analyze these URLs and page context to identify:
+        1. Product detail pages
+        2. Pagination links
+        3. Category/filter pages
+        
+        URLs to analyze: {urls}
+        Context: {context}
+        
+        Return classification in JSON format."""
+        
+        formatted_prompt = prompt.format(
+            urls=json.dumps(urls),
+            context=json.dumps(context)
+        )
+        
+        # Remove response_format parameter as it's not supported
+        response = self.openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{
+                "role": "user",
+                "content": formatted_prompt
+            }],
+            max_tokens=1000
+        )
+        
+        try:
+            return json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError:
+            return {
+                "product_pages": [],
+                "pagination_links": [],
+                "category_pages": []
+            }
+
+    def _analyze_with_xai(self, urls: List[str], context: Dict) -> Dict[str, List[str]]:
+        prompt = """Classify these e-commerce URLs into:
+        1. Product pages
+        2. Pagination links
+        3. Category pages
+        
+        URLs to analyze: {urls}
+        Context: {context}
+        
+        Return classification in JSON format."""
+        
+        formatted_prompt = prompt.format(
+            urls=json.dumps(urls),
+            context=json.dumps(context)
+        )
+        
+        # Remove response_format parameter as it's not supported
+        response = self.xai_client.chat.completions.create(
+            model="grok-2-vision-1212",
+            messages=[{
+                "role": "user",
+                "content": formatted_prompt
+            }],
+            max_tokens=1000
+        )
+        
+        try:
+            return json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError:
+            return {
+                "product_pages": [],
+                "pagination_links": [],
+                "category_pages": []
+            }
+            
+class PageAnalyzer:
+    def __init__(self):
+        self._init_client()
+
+    def _init_client(self):
+        try:
+            # Initialize Gemini
+            genai.configure(api_key=GOOGLE_API_KEY)
+            
+            # Initialize OpenAI
+            self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
+            
+            # Initialize XAI
+            self.xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
+            
+            st.success("All LLM clients initialized successfully")
+        except Exception as e:
+            st.error(f"Error initializing LLM clients: {str(e)}")
+    
+    def is_product_page(self, url: str, content: str, platform_context: Dict) -> bool:
+        """Determine if a page is a product page using LLM analysis"""
+        analyzers = [
+            self._check_with_gemini,
+            self._check_with_gpt4,
+            self._check_with_xai
+        ]
+
+        normalized_url = (
+            url if url.startswith(('http://', 'https://')) 
+            else f'https:{url}' if url.startswith('//') 
+            else f'https://{url}'
+        )
+        
+        for analyzer in analyzers:
+            try:
+                result = analyzer(normalized_url, content, platform_context)
+                if result is not None:
+                    return result
+            except Exception as e:
+                st.warning(f"Page analyzer failed: {str(e)}")
+                continue
+                
+        return False
+
+    def _check_with_gemini(self, url: str, content: str, context: Dict) -> bool:
+        # Prompt for analysis
+        prompt = """Analyze this page to determine if it's a product detail page.
+        Consider:
+        - URL structure
+        - Page content
+        - Platform-specific indicators
+        
+        Return JSON: {"is_product_page": true/false, "confidence": float between 0-1}"""
+
+        # Construct content with proper structure
+        content_data = {
+            "parts": [
+                {"text": prompt},
+                {"text": f"URL: {url}"},
+                {"text": f"Page content: {content[:1000]}"},
+                {"text": f"Context: {json.dumps(context)}"}
+            ]
+        }
+
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
+        try:
+            # Send request to Gemini API
+            response = model.generate_content(content_data)
+            st.write("Gemini API response received")
+
+            # Clean up and parse response
+            response_text = response.text.replace("```json", "").replace("```", "").strip()
+            result = json.loads(response_text)
+
+            # Validate response structure
+            if not isinstance(result, dict) or "is_product_page" not in result:
+                raise ValueError("Invalid response structure")
+
+            st.info(f"Gemini response: {result}")
+            return result.get("is_product_page", False)
+
+        except json.JSONDecodeError:
+            st.error(f"Invalid JSON response: {response.text}")
+            return False
+        except Exception as e:
+            st.error(f"Gemini API error: {str(e)}")
+            return False
+
+    def _check_with_gpt4(self, url: str, content: str, context: Dict) -> bool:
+        prompt = """Analyze this page to determine if it's a product detail page.
+        Consider:
+        - URL structure
+        - Page content
+        - Platform-specific indicators
+        
+        Return JSON: {"is_product_page": true/false, "confidence": float between 0-1}"""
+        
+        formatted_prompt = f"""
+        {prompt}
+        
+        URL: {url}
+        Page content: {content[:1000]}
+        Context: {json.dumps(context)}
+        """
+        
+        try:
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": formatted_prompt}],
+                max_tokens=1000
+            )
+            
+            response_text = response.choices[0].message.content.strip()
+            result = json.loads(response_text)
+            
+            if not isinstance(result, dict) or "is_product_page" not in result:
+                raise ValueError("Invalid response structure")
+            
+            st.info(f"GPT-4 response: {result}")
+            return result.get("is_product_page", False)
+        
+        except json.JSONDecodeError:
+            st.error("Invalid JSON response")
+            return False
+        except Exception as e:
+            st.error(f"GPT-4 API error: {str(e)}")
+            return False
+
+    def _check_with_xai(self, url: str, content: str, context: Dict) -> bool:
+        prompt = """Analyze this page to determine if it's a product detail page.
+        Consider:
+        - URL structure
+        - Page content
+        - Platform-specific indicators
+        
+        Return JSON: {"is_product_page": true/false, "confidence": float between 0-1}"""
+        
+        formatted_prompt = f"""
+        {prompt}
+        
+        URL: {url}
+        Page content: {content[:1000]}
+        Context: {json.dumps(context)}
+        """
+        
+        try:
+            response = self.xai_client.chat.completions.create(
+                model="grok-2-vision-1212",
+                messages=[{"role": "user", "content": formatted_prompt}],
+                max_tokens=1000
+            )
+            
+            response_text = response.choices[0].message.content.strip()
+            result = json.loads(response_text)
+            
+            if not isinstance(result, dict) or "is_product_page" not in result:
+                raise ValueError("Invalid response structure")
+            
+            st.info(f"XAI response: {result}")
+            return result.get("is_product_page", False)
+        
+        except json.JSONDecodeError:
+            st.error("Invalid JSON response")
+            return False
+        except Exception as e:
+            st.error(f"XAI API error: {str(e)}")
+            return False
+

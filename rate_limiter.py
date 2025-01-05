@@ -1,7 +1,6 @@
 # rate_limiter.py
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-import streamlit as st
 
 @dataclass
 class RateLimit:

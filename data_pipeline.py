@@ -4,20 +4,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 import pandas as pd
 import streamlit as st
-import hashlib
-import concurrent.futures
-from PIL import Image
-import requests
-from io import BytesIO
-import json
 from urllib.parse import urlparse
-import httpx
-import base64
-import json
-from urllib.parse import urlparse
-from typing import Optional, Dict
-
-# Keep your existing imports and add any missing ones needed for LLM analysis
 from llm_analyzers import LLMAnalyzer
 
 @dataclass
@@ -28,8 +15,6 @@ class ScrapedProduct:
     all_images: List[str]
     page_text: str
     metadata: Dict
-
-# data_pipeline.py
 
 @dataclass
 class ProcessedProduct:
@@ -46,19 +31,7 @@ class DataPreparationPipeline:
         self.raw_products = raw_products
         self.processed_products: List[ProcessedProduct] = []
         self.analyzer = LLMAnalyzer()
-
-    def prepare_data(self) -> pd.DataFrame:
-        with st.spinner("Processing and verifying products..."):
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            # Process products
-            self._process_products(progress_bar, status_text)
-            
-            # Create final DataFrame
-            df = self._create_final_dataframe()
-            
-            return df
+        self.processed_urls = set()  # Track processed URLs to avoid duplicates
 
     def _process_products(self, progress_bar, status_text):
         processed_count = 0
@@ -110,7 +83,66 @@ class DataPreparationPipeline:
                 
             progress_bar.progress((idx + 1) / len(self.raw_products))            
     
-    def _create_final_dataframe(self) -> pd.DataFrame:
+    def _process_single_product(self, product: ScrapedProduct) -> Optional[ProcessedProduct]:
+        """Process a single product"""
+        if product.url in self.processed_urls:
+            st.info(f"Skipping duplicate product: {product.url}")
+            return None
+
+        try:
+            # Filter out already processed images
+            new_images = [img for img in product.all_images[:10] 
+                         if img not in self.processed_urls]
+            
+            if not new_images:
+                st.info(f"Skipping product - duplicate images: {product.url}")
+                return None
+                
+            analysis = self.analyzer.analyze_images(new_images, product.page_text)
+            
+            if analysis and analysis['lifestyle_images']:
+                processed = ProcessedProduct(
+                    brand_url=urlparse(product.url).netloc,
+                    product_url=product.url,
+                    product_images=analysis['product_images'][:5],
+                    lifestyle_images=analysis['lifestyle_images'][:5],
+                    confidence=analysis['confidence'],
+                    status=''
+                )
+                self.processed_urls.add(product.url)
+                return processed
+            else:
+                st.warning(f"No lifestyle images found for: {product.url}")
+                return None
+                
+        except Exception as e:
+            st.error(f"Error processing {product.url}: {str(e)}")
+            return None
+
+    def prepare_data(self, max_products: Optional[int] = None) -> pd.DataFrame:
+        """Process products with optional limit"""
+        products_to_process = self.raw_products[:max_products] if max_products else self.raw_products
+        
+        with st.spinner("Processing and verifying products..."):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for idx, product in enumerate(products_to_process):
+                status_text.text(f"Processing product {idx + 1}/{len(products_to_process)}")
+                
+                processed = self._process_single_product(product)
+                if processed:
+                    self.processed_products.append(processed)
+                    
+                progress_bar.progress((idx + 1) / len(products_to_process))
+                
+        return self._create_final_dataframe()
+
+    def _create_final_dataframe(self, products: Optional[List[ProcessedProduct]] = None) -> pd.DataFrame:
+        """Create DataFrame from processed products"""
+        if products is None:
+            products = self.processed_products
+            
         columns = [
             'S/N', 'Brand URL', 'Product URL',
             *[f'Product Image {i}_Link' for i in range(1, 6)],
@@ -119,7 +151,7 @@ class DataPreparationPipeline:
         ]
         
         data = []
-        for idx, product in enumerate(self.processed_products, 1):
+        for idx, product in enumerate(products, 1):
             row = {
                 'S/N': idx,
                 'Brand URL': product.brand_url,
@@ -141,5 +173,5 @@ class DataPreparationPipeline:
             
             data.append(row)
             
-        df = pd.DataFrame(data, columns=columns)
-        return df
+        return pd.DataFrame(data, columns=columns)
+        
