@@ -36,7 +36,6 @@ class ProcessedProduct:
     product_image: str
     lifestyle_image: str
     confidence: float
-    metadata: Dict
     verification_status: str
 
 class ProductScraper:
