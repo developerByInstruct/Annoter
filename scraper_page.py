@@ -326,8 +326,8 @@ def process_raw_products(raw_products: List[ScrapedProduct], max_products: int, 
                 processed_dict = {
                     'brand_url': processed.brand_url,
                     'product_url': processed.product_url,
-                    'product_images': processed.product_images[0] if processed.product_images else "",  # Take first image
-                    'lifestyle_images': processed.lifestyle_images[0] if processed.lifestyle_images else "",  # Take first image
+                    'product_images': processed.product_images if processed.product_images else "",  # Take first image
+                    'lifestyle_images': processed.lifestyle_images if processed.lifestyle_images else "",  # Take first image
                     'confidence': processed.confidence,
                     'status': "",
                     'assigned_to': ""
