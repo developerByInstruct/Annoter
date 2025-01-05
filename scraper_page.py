@@ -29,14 +29,16 @@ class ScrapedProduct:
     page_text: str
     metadata: Dict
 
+
 @dataclass
 class ProcessedProduct:
     brand_url: str
     product_url: str
-    product_image: str
-    lifestyle_image: str
+    product_images: List[str]
+    lifestyle_images: List[str]
     confidence: float
-    verification_status: str
+    status: str
+    assigned_to: str 
 
 class ProductScraper:
     def __init__(self, brand_url: str):
@@ -324,10 +326,11 @@ def process_raw_products(raw_products: List[ScrapedProduct], max_products: int, 
                 processed_dict = {
                     'brand_url': processed.brand_url,
                     'product_url': processed.product_url,
-                    'product_image': processed.product_images[0] if processed.product_images else "",  # Take first image
-                    'lifestyle_image': processed.lifestyle_images[0] if processed.lifestyle_images else "",  # Take first image
+                    'product_images': processed.product_images[0] if processed.product_images else "",  # Take first image
+                    'lifestyle_images': processed.lifestyle_images[0] if processed.lifestyle_images else "",  # Take first image
                     'confidence': processed.confidence,
-                    'verification_status': processed.status,
+                    'status': "",
+                    'assigned_to': ""
                 }
                 processed_products.append(processed_dict)
                 
