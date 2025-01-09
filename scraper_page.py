@@ -94,8 +94,26 @@ class ProductScraper:
         with st.spinner("Collecting product pages..."):
             progress_bar = st.progress(0)
             status_text = st.empty()
+            metrics_col1, metrics_col2 = st.columns(2)
+            
+            with metrics_col1:
+                products_metric = st.empty()
+            with metrics_col2:
+                links_metric = st.empty()
             
             while (self.urls_to_visit or self.pagination_queue) and len(self.raw_products) < target_products:
+                # Update metrics
+                products_metric.metric(
+                    "Products Scraped", 
+                    f"{len(self.raw_products)}/{target_products}",
+                    f"+{len(self.raw_products) - current_products} new"
+                )
+                links_metric.metric(
+                    "Links Visited",
+                    len(self.visited_urls),
+                    f"{len(self.urls_to_visit) + len(self.pagination_queue)} remaining"
+                )
+                
                 # Process pagination queue when main queue is empty
                 if not self.urls_to_visit and self.pagination_queue:
                     self.urls_to_visit = [self.pagination_queue.pop(0)]
@@ -141,6 +159,13 @@ class ProductScraper:
                             self.raw_products.append(product)
                             self.processed_product_urls.add(current_url)
                             
+                            # Update metrics after adding new product
+                            products_metric.metric(
+                                "Products Scraped", 
+                                f"{len(self.raw_products)}/{target_products}",
+                                f"+{len(self.raw_products) - current_products} new"
+                            )
+                            
                             if len(self.raw_products) >= target_products:
                                 st.success(f"Reached target of {len(self.raw_products)} products ({current_products} from checkpoint + {max_products} new)")
                                 break
@@ -156,6 +181,18 @@ class ProductScraper:
                 except Exception as e:
                     self.error_handler.handle_url_error(current_url, e)
                     continue
+            
+            # Final metrics update
+            products_metric.metric(
+                "Products Scraped", 
+                f"{len(self.raw_products)}/{target_products}",
+                f"+{len(self.raw_products) - current_products} new"
+            )
+            links_metric.metric(
+                "Links Visited",
+                len(self.visited_urls),
+                f"{len(self.urls_to_visit) + len(self.pagination_queue)} remaining"
+            )
         
         return self.raw_products
 
