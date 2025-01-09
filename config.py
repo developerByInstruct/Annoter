@@ -38,6 +38,7 @@ GEMINI_API_KEY_2 = get_api_key("gemini_api_key_2")
 GOOGLE_API_KEY = get_api_key("google_api_key")
 GROK_API_KEY = get_api_key("grok_api_key")
 TOGETHER_API_KEY = get_api_key("together_api_key")
+GROQ_API_KEY = get_api_key("groq_api_key")
 
 # Model configurations
 MODELS = {
