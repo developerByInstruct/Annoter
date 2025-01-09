@@ -108,15 +108,24 @@ class DataPreparationPipeline:
                 'Product URL': product.product_url
             }
             
+            # Handle case where there are no product images but have lifestyle images
+            product_images = product.product_images
+            lifestyle_images = product.lifestyle_images
+            
+            if not product_images and lifestyle_images:
+                # Move first lifestyle image to product images
+                product_images = [lifestyle_images[0]]
+                lifestyle_images = lifestyle_images[1:]  # Remove the first image from lifestyle
+            
             # Add product images
             for i in range(5):
                 col = f'Product Image {i+1}_Link'
-                row[col] = product.product_images[i] if i < len(product.product_images) else ''
+                row[col] = product_images[i] if i < len(product_images) else ''
                 
             # Add lifestyle images
             for i in range(5):
                 col = f'Lifestyle Image {i+1}_Link'
-                row[col] = product.lifestyle_images[i] if i < len(product.lifestyle_images) else ''
+                row[col] = lifestyle_images[i] if i < len(lifestyle_images) else ''
                 
             row['Status'] = product.status
             row['Assigned to'] = product.assigned_to
