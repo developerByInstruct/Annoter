@@ -14,6 +14,44 @@ import time
 
 class LLMAnalyzer:
     def __init__(self):
+        self.sys_prompt = """You are a professional image classifier specializing in product and lifestyle image analysis. Your task is to:
+1. Identify and separate product images from lifestyle images
+2. Ensure proper classification based on strict criteria
+
+Product Image Criteria:
+- Must be isolated product shots
+- Neutral/solid background
+- No humans present
+- Clear lighting showing accurate colors
+- No text/graphics (except on product)
+- Shows entire product
+- Can include multiple angles of same product
+- Maximum 5 images allowed
+
+Lifestyle Image Criteria:
+- Shows product in real-life use/setting
+- Can include humans using product
+- Natural environment and lighting
+- Product must match color in product images
+- Maximum 5 images allowed
+- Must show the actual product (not similar/related products)
+
+Rules for Classification:
+1. Product images must be prioritized - select best product shots first
+2. Front view must be first product image if available
+3. No duplicate images in either category
+4. Different color variants not allowed
+5. Maximum 5 images per category
+6. Lifestyle images can appear in product section if they clearly show product details
+7. Product-only images must NEVER appear in lifestyle section
+
+Return JSON with:
+{
+    "product_images": ["url1", "url2"...],  # Front view first, then other angles
+    "lifestyle_images": ["url1", "url2"...], # Only real lifestyle shots
+    "confidence": float between 0-1
+}"""
+
         self._init_client()
         
     def _init_client(self):
@@ -172,40 +210,19 @@ class LLMAnalyzer:
             time.sleep(wait_time)
         st.session_state.last_gemini_call = time.time()
 
-        # Initialize Gemini model
-        model = genai.GenerativeModel("gemini-exp-1206")
+        # Initialize Gemini model with system prompt
+        model = genai.GenerativeModel("gemini-exp-1206",
+            system_instruction=self.sys_prompt
+        )
 
-        prompt = """Analyze these product images following these strict rules:
+        prompt = """Analyze these product images and classify them into product images and lifestyle images according to the criteria provided.
+        
+Product Link/Context: {page_text}
 
-Product Images Section Requirements:
-1. Front view MUST be first image in product images
-2. Back view and side view can be included after front view
-3. Must have neutral/solid background
-4. No humans/text (except on product)
-5. Clear lighting showing accurate colors
-6. Maximum 2 lifestyle images allowed here if they show product clearly
-
-Lifestyle Images Section Requirements:
-1. Must show product in real-life setting/use
-2. Can include humans using product
-3. Natural environment and lighting
-4. Product color MUST match product images section exactly
-5. NO product-only images allowed here
-6. Can be front/back/side view of product in use
-
-Additional Rules:
-- No duplicate images allowed in either section
-- Different color variants not allowed - must match product images exactly
-- Maximum 5 images per section
-- Ignore similar/related product images from the page
-- Only include images of the specific product being viewed
-- Lifestyle images can appear in both sections (max 2 in product section)
-- Product images must NEVER appear in lifestyle section
-
-Return JSON with:
+Return a JSON response with:
 {
-    "product_images": ["url1", "url2"...],  # Front view first, then back/side views
-    "lifestyle_images": ["url1", "url2"...], # Only real lifestyle shots
+    "product_images": ["url1", "url2"...],  # Front view first, max 5
+    "lifestyle_images": ["url1", "url2"...], # Real lifestyle only, max 5
     "confidence": float between 0-1
 }"""
 
@@ -301,7 +318,7 @@ Return JSON with:
         return front_images + other_images if front_images else images
 
     def _analyze_with_gpt4(self, images: List[str], page_text: str) -> Dict:
-        st.write("Preparing GPT-4O analysis...")
+        st.write("Preparing GPT-4 analysis...")
                 
         # Prepare images and limit total payload size
         total_size = 0
@@ -332,123 +349,50 @@ Return JSON with:
 
         if not image_parts:
             raise Exception("No valid images could be processed")        
+
+        prompt = """Analyze these product images and classify them into product images and lifestyle images according to the criteria provided.
         
-        prompt = """Analyze these product images following these strict rules:
+Product Link/Context: {page_text}
 
-Product Images Section Requirements:
-1. Front view MUST be first image in product images
-2. Back view and side view can be included after front view
-3. Must have neutral/solid background
-4. No humans/text (except on product)
-5. Clear lighting showing accurate colors
-6. Maximum 2 lifestyle images allowed here if they show product clearly
-
-Lifestyle Images Section Requirements:
-1. Must show product in real-life setting/use
-2. Can include humans using product
-3. Natural environment and lighting
-4. Product color MUST match product images section exactly
-5. NO product-only images allowed here
-6. Can be front/back/side view of product in use
-
-Additional Rules:
-- No duplicate images allowed in either section
-- Different color variants not allowed - must match product images exactly
-- Maximum 5 images per section
-- Ignore similar/related product images from the page
-- Only include images of the specific product being viewed
-- Lifestyle images can appear in both sections (max 2 in product section)
-- Product images must NEVER appear in lifestyle section
-
-Return JSON with:
+Return a JSON response with:
 {
-    "product_images": ["url1", "url2"...],  # Front view first, then back/side views
-    "lifestyle_images": ["url1", "url2"...], # Only real lifestyle shots
+    "product_images": ["url1", "url2"...],  # Front view first, max 5
+    "lifestyle_images": ["url1", "url2"...], # Real lifestyle only, max 5
     "confidence": float between 0-1
 }"""
-        
-        image_data = []
-        for url in images:
-            try:
-                response = httpx.get(url)
-                response.raise_for_status()
-                
-                # Verify content type
-                if not response.headers.get('content-type', '').startswith('image/'):
-                    continue
-                    
-                img_base64 = base64.b64encode(response.content).decode('utf-8')
-                
-                # Validate base64 before adding
-                if not self._validate_base64(img_base64):
-                    continue
-                    
-                image_data.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{img_base64}"
-                    }
-                })
-            except Exception as e:
-                st.error(f"Error processing image {url}: {str(e)}")
-                continue
-
-        if not image_data:
-            raise Exception("No valid images could be processed")
 
         response = self.openai_client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    *image_data,
-                    {"type": "text", "text": f"Image URLs: {json.dumps(images)}"},
-                    {"type": "text", "text": f"Page text: {page_text[:1000]}"}
-                ]
-            }],
+            messages=[
+                {"role": "system", "content": self.sys_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        *[{
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{img['data']}"}
+                        } for img in image_parts],
+                        {"type": "text", "text": f"Image URLs: {json.dumps(images)}"},
+                        {"type": "text", "text": f"Page text: {page_text[:1000]}"}
+                    ]
+                }
+            ],
             max_tokens=1000,
             response_format={"type": "json_object"}
         )
-
-        # Clean up the response text
-        response_text = response.choices[0].message.content
-        # Remove markdown code block indicators and 'json' label if present
-        response_text = response_text.replace('```json', '').replace('```', '').strip()
         
         try:
-            result = json.loads(response_text)
-            if not isinstance(result, dict):
-                raise ValueError("Response is not a dictionary")
-                
-            # Validate response format and clean up arrays
-            required_keys = ["product_images", "lifestyle_images", "confidence"]
-            if not all(key in result for key in required_keys):
-                raise ValueError("Response missing required keys")
-            
-            # Ensure arrays are properly formatted (no numeric indices)
-            if isinstance(result["product_images"], dict):
-                result["product_images"] = list(result["product_images"].values())
-            if isinstance(result["lifestyle_images"], dict):
-                result["lifestyle_images"] = list(result["lifestyle_images"].values())
-                
-            # Remove duplicates while preserving order
-            result["product_images"] = list(dict.fromkeys(result["product_images"]))
-            result["lifestyle_images"] = list(dict.fromkeys(result["lifestyle_images"]))
-            
-            # Validate front view is first in product images
-            if result["product_images"] and not self._is_front_view(result["product_images"][0], page_text):
-                st.warning("Front view not detected as first product image, reordering...")
-                result["product_images"] = self._reorder_product_images(result["product_images"], page_text)
-            
-            return result
-            
+            return json.loads(response.choices[0].message.content)
         except json.JSONDecodeError:
-            st.error(f"Invalid JSON response: {response_text}")
-            raise
+            return {
+                "product_images": [],
+                "lifestyle_images": [],
+                "confidence": 0.0
+            }
 
     def _analyze_with_xai(self, images: List[str], page_text: str) -> Dict:
-        st.write("Preparing Grok analysis...")
+        st.write("Preparing XAI analysis...")
                 
         # Prepare images and limit total payload size
         total_size = 0
@@ -479,120 +423,48 @@ Return JSON with:
 
         if not image_parts:
             raise Exception("No valid images could be processed")          
-        prompt = """Analyze these product images following these strict rules:
 
-Product Images Section Requirements:
-1. Front view MUST be first image in product images
-2. Back view and side view can be included after front view
-3. Must have neutral/solid background
-4. No humans/text (except on product)
-5. Clear lighting showing accurate colors
-6. Maximum 2 lifestyle images allowed here if they show product clearly
+        prompt = """Analyze these product images and classify them into product images and lifestyle images according to the criteria provided.
+        
+Product Link/Context: {page_text}
 
-Lifestyle Images Section Requirements:
-1. Must show product in real-life setting/use
-2. Can include humans using product
-3. Natural environment and lighting
-4. Product color MUST match product images section exactly
-5. NO product-only images allowed here
-6. Can be front/back/side view of product in use
-
-Additional Rules:
-- No duplicate images allowed in either section
-- Different color variants not allowed - must match product images exactly
-- Maximum 5 images per section
-- Ignore similar/related product images from the page
-- Only include images of the specific product being viewed
-- Lifestyle images can appear in both sections (max 2 in product section)
-- Product images must NEVER appear in lifestyle section
-
-Return JSON with:
+Return a JSON response with:
 {
-    "product_images": ["url1", "url2"...],  # Front view first, then back/side views
-    "lifestyle_images": ["url1", "url2"...], # Only real lifestyle shots
+    "product_images": ["url1", "url2"...],  # Front view first, max 5
+    "lifestyle_images": ["url1", "url2"...], # Real lifestyle only, max 5
     "confidence": float between 0-1
 }"""
-        
-        image_data = []
-        for url in images:
-            try:
-                response = httpx.get(url)
-                response.raise_for_status()
-                
-                # Verify content type
-                if not response.headers.get('content-type', '').startswith('image/'):
-                    continue
-                    
-                img_base64 = base64.b64encode(response.content).decode('utf-8')
-                
-                # Validate base64 before adding
-                if not self._validate_base64(img_base64):
-                    continue
-                    
-                image_data.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{img_base64}"
-                    }
-                })
-            except Exception as e:
-                st.error(f"Error processing image {url}: {str(e)}")
-                continue
-
-        if not image_data:
-            raise Exception("No valid images could be processed")
 
         response = self.xai_client.chat.completions.create(
             model="grok-2-vision-1212",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    *image_data,
-                    {"type": "text", "text": f"Image URLs: {json.dumps(images)}"},
-                    {"type": "text", "text": f"Page text: {page_text[:1000]}"}
-                ]
-            }],
+            messages=[
+                {"role": "system", "content": self.sys_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        *[{
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{img['data']}"}
+                        } for img in image_parts],
+                        {"type": "text", "text": f"Image URLs: {json.dumps(images)}"},
+                        {"type": "text", "text": f"Page text: {page_text[:1000]}"}
+                    ]
+                }
+            ],
             max_tokens=1000,
             response_format={"type": "json_object"}
         )
         
-        # Clean up the response text
-        response_text = response.choices[0].message.content
-        # Remove markdown code block indicators and 'json' label if present
-        response_text = response_text.replace('```json', '').replace('```', '').strip()
-        
         try:
-            result = json.loads(response_text)
-            if not isinstance(result, dict):
-                raise ValueError("Response is not a dictionary")
-                
-            # Validate response format and clean up arrays
-            required_keys = ["product_images", "lifestyle_images", "confidence"]
-            if not all(key in result for key in required_keys):
-                raise ValueError("Response missing required keys")
-            
-            # Ensure arrays are properly formatted (no numeric indices)
-            if isinstance(result["product_images"], dict):
-                result["product_images"] = list(result["product_images"].values())
-            if isinstance(result["lifestyle_images"], dict):
-                result["lifestyle_images"] = list(result["lifestyle_images"].values())
-                
-            # Remove duplicates while preserving order
-            result["product_images"] = list(dict.fromkeys(result["product_images"]))
-            result["lifestyle_images"] = list(dict.fromkeys(result["lifestyle_images"]))
-            
-            # Validate front view is first in product images
-            if result["product_images"] and not self._is_front_view(result["product_images"][0], page_text):
-                st.warning("Front view not detected as first product image, reordering...")
-                result["product_images"] = self._reorder_product_images(result["product_images"], page_text)
-            
-            return result
-            
+            return json.loads(response.choices[0].message.content)
         except json.JSONDecodeError:
-            st.error(f"Invalid JSON response: {response_text}")
-            raise
-        
+            return {
+                "product_images": [],
+                "lifestyle_images": [],
+                "confidence": 0.0
+            }
+
 class URLAnalyzer:
     def __init__(self):
         self._init_client()
