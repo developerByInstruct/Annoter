@@ -702,27 +702,22 @@ class URLAnalyzer:
             "category_pages": ["url1", "url2"]
         }"""
         
-        formatted_prompt = prompt.format(
-            urls=json.dumps(urls),
-            context=json.dumps(context)
-        )
-        
-        # Remove response_format parameter as it's not supported
         response = self.openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{
                 "role": "user",
-                "content": formatted_prompt
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "text", "text": f"URLs to analyze: {json.dumps(urls)}"},
+                    {"type": "text", "text": f"Context: {json.dumps(context)}"}
+                ]
             }],
-            max_tokens=1000
+            max_tokens=1000,
+            response_format={"type": "json_object"}
         )
-        # Clean up the response text
-        response_text = response.choices[0].message.content
-        # Remove markdown code block indicators and 'json' label if present
-        response_text = response_text.replace('```json', '').replace('```', '').strip()        
         
         try:
-            return json.loads(response_text)
+            return json.loads(response.choices[0].message.content)
         except json.JSONDecodeError:
             return {
                 "product_pages": [],
@@ -743,28 +738,22 @@ class URLAnalyzer:
             "category_pages": ["url1", "url2"]
         }"""
         
-        formatted_prompt = prompt.format(
-            urls=json.dumps(urls),
-            context=json.dumps(context)
-        )
-        
-        # Remove response_format parameter as it's not supported
         response = self.xai_client.chat.completions.create(
             model="grok-2-vision-1212",
             messages=[{
                 "role": "user",
-                "content": formatted_prompt
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "text", "text": f"URLs to analyze: {json.dumps(urls)}"},
+                    {"type": "text", "text": f"Context: {json.dumps(context)}"}
+                ]
             }],
-            max_tokens=1000
+            max_tokens=1000,
+            response_format={"type": "json_object"}
         )
         
-        # Clean up the response text
-        response_text = response.choices[0].message.content
-        # Remove markdown code block indicators and 'json' label if present
-        response_text = response_text.replace('```json', '').replace('```', '').strip() 
-
         try:
-            return json.loads(response_text)
+            return json.loads(response.choices[0].message.content)
         except json.JSONDecodeError:
             return {
                 "product_pages": [],
@@ -883,26 +872,25 @@ class PageAnalyzer:
         
         Return JSON: {"is_product_page": true/false, "confidence": float between 0-1}"""
         
-        formatted_prompt = f"""
-        {prompt}
-        
-        URL: {url}
-        Page content: {content[:1000]}
-        Context: {json.dumps(context)}
-        """
-        
         try:
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=[{"role": "user", "content": formatted_prompt}],
-                max_tokens=1000
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "text", "text": f"URL: {url}"},
+                        {"type": "text", "text": f"Page content: {content[:1000]}"},
+                        {"type": "text", "text": f"Context: {json.dumps(context)}"}
+                    ]
+                }],
+                max_tokens=1000,
+                response_format={"type": "json_object"}
             )
             
             st.write("GPT-4 API response received")
 
-            # Clean up and parse response
-            response_text = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
-            result = json.loads(response_text)
+            result = json.loads(response.choices[0].message.content)
             
             if not isinstance(result, dict) or "is_product_page" not in result:
                 raise ValueError("Invalid response structure")
@@ -926,26 +914,25 @@ class PageAnalyzer:
         
         Return JSON: {"is_product_page": true/false, "confidence": float between 0-1}"""
         
-        formatted_prompt = f"""
-        {prompt}
-        
-        URL: {url}
-        Page content: {content[:1000]}
-        Context: {json.dumps(context)}
-        """
-        
         try:
             response = self.xai_client.chat.completions.create(
                 model="grok-2-vision-1212",
-                messages=[{"role": "user", "content": formatted_prompt}],
-                max_tokens=1000
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "text", "text": f"URL: {url}"},
+                        {"type": "text", "text": f"Page content: {content[:1000]}"},
+                        {"type": "text", "text": f"Context: {json.dumps(context)}"}
+                    ]
+                }],
+                max_tokens=1000,
+                response_format={"type": "json_object"}
             )
             
             st.write("XAI API response received")
 
-            # Clean up and parse response
-            response_text = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
-            result = json.loads(response_text)
+            result = json.loads(response.choices[0].message.content)
             
             if not isinstance(result, dict) or "is_product_page" not in result:
                 raise ValueError("Invalid response structure")
