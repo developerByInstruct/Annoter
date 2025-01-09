@@ -4,17 +4,32 @@ import google.generativeai as genai
 from PIL import Image
 import requests
 import json
-import os
 from openai import OpenAI
 from together import Together
 from groq import Groq
 import io
 from config import MODELS, OPENAI_API_KEY, TOGETHER_API_KEY, GROQ_API_KEY, GOOGLE_API_KEY, GROK_API_KEY
 from pdf_generator import create_caption_pdf
-import base64
 import zipfile
 from scraper_page import display_scraper_page
 from data_pipeline import DataPreparationPipeline
+
+# At the top of your app.py, before any other Streamlit commands
+st.set_page_config(
+    page_title="Centurion Automation",
+    page_icon="🚀",  # You can change this
+    layout="wide"     # Optional
+)
+
+# Add custom CSS to hide the radio button
+hide_radio_style = """
+<style>
+[data-testid="stSidebar"] [data-testid="stRadio"] {
+    display: none
+}
+</style>
+"""
+st.markdown(hide_radio_style, unsafe_allow_html=True)
 
 # Initialize API clients
 genai.configure(api_key=GOOGLE_API_KEY)
