@@ -61,7 +61,9 @@ class ErrorHandler:
     def __init__(self):
         self.errors = []
         self._setup_logging()
-    
+        self.max_retries = 3  # Maximum number of retries for any operation
+        self.retry_delay = 1  # Base delay in seconds
+        
     def _setup_logging(self):
         logging.basicConfig(
             level=logging.INFO,
@@ -90,22 +92,47 @@ class ErrorHandler:
         self.logger.error(f"Image Error: {image_url} - {str(error)}")
         
     def handle_api_error(self, model: str, error: Exception) -> None:
-        """Handle LLM API errors"""
+        """Handle LLM API errors with improved network error handling"""
+        error_str = str(error).lower()
         error_info = {
             'type': 'api_error',
             'model': model,
             'error': str(error)
         }
+        
+        # Check for specific network-related errors
+        if any(err in error_str for err in ['503', 'connection', 'timeout', 'socket', 'network']):
+            self.logger.error(f"Network Error ({model}): {str(error)}")
+            error_info['subtype'] = 'network_error'
+            # Don't retry network errors, just fail fast
+            raise APIError(f"Network connectivity issue with {model}: {str(error)}")
+        
+        # Handle rate limiting separately
+        elif any(term in error_str for term in ['rate limit', 'quota']):
+            self.logger.warning(f"Rate Limit ({model}): {str(error)}")
+            error_info['subtype'] = 'rate_limit'
+            # Let the caller handle rate limiting
+            raise APIError(f"Rate limit reached for {model}")
+        
+        # Handle other API errors
+        else:
+            self.logger.error(f"API Error ({model}): {str(error)}")
+            error_info['subtype'] = 'general_error'
+        
         self.errors.append(error_info)
-        self.logger.error(f"API Error ({model}): {str(error)}")
         
     def get_error_summary(self) -> Dict:
-        """Generate error summary"""
+        """Generate error summary with network error details"""
         return {
             'total_errors': len(self.errors),
             'url_errors': len([e for e in self.errors if e['type'] == 'url_error']),
             'image_errors': len([e for e in self.errors if e['type'] == 'image_error']),
-            'api_errors': len([e for e in self.errors if e['type'] == 'api_error'])
+            'api_errors': {
+                'total': len([e for e in self.errors if e['type'] == 'api_error']),
+                'network': len([e for e in self.errors if e.get('subtype') == 'network_error']),
+                'rate_limit': len([e for e in self.errors if e.get('subtype') == 'rate_limit']),
+                'general': len([e for e in self.errors if e.get('subtype') == 'general_error'])
+            }
         }
 
 class PlatformAdapter:

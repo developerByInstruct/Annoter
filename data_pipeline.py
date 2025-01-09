@@ -32,56 +32,6 @@ class DataPreparationPipeline:
         self.processed_products: List[ProcessedProduct] = []
         self.analyzer = LLMAnalyzer()
         self.processed_urls = set()  # Track processed URLs to avoid duplicates
-
-    def _process_products(self, progress_bar, status_text):
-        processed_count = 0
-        max_images = 500
-        processed_urls = set()  # Track processed image URLs
-        
-        for idx, product in enumerate(self.raw_products):
-            status_text.text(f"Processing product {idx + 1}/{len(self.raw_products)}")
-            
-            try:
-                if processed_count >= max_images:
-                    st.warning("Maximum image limit reached")
-                    break
-                    
-                # Filter out already processed images
-                new_images = [img for img in product.all_images[:10] 
-                            if img not in processed_urls]
-                
-                if not new_images:
-                    st.info(f"Skipping product {idx + 1} - duplicate images")
-                    continue
-                    
-                analysis = self.analyzer.analyze_images(new_images, product.page_text)
-                
-                if analysis:
-                    # Count unique new images
-                    unique_new_images = set(analysis['product_images'] + 
-                                        analysis['lifestyle_images']) - processed_urls
-                        
-                    processed_count += len(unique_new_images)
-                    processed_urls.update(unique_new_images)
-                    
-                    if analysis['lifestyle_images']:
-                        processed = ProcessedProduct(
-                            brand_url=urlparse(product.url).netloc,
-                            product_url=product.url,
-                            product_images=analysis['product_images'][:5],
-                            lifestyle_images=analysis['lifestyle_images'][:5],
-                            confidence=analysis['confidence'],
-                            status=''
-                        )
-                        self.processed_products.append(processed)
-                        st.success(f"Successfully processed product {idx + 1}")
-                    else:
-                        st.warning(f"No lifestyle images found for product {idx + 1}")
-                        
-            except Exception as e:
-                st.error(f"Error processing {product.url}: {str(e)}")
-                
-            progress_bar.progress((idx + 1) / len(self.raw_products))            
     
     def _process_single_product(self, product: ScrapedProduct) -> Optional[ProcessedProduct]:
         """Process a single product"""
@@ -91,7 +41,7 @@ class DataPreparationPipeline:
 
         try:
             # Filter out already processed images
-            new_images = [img for img in product.all_images[:10] 
+            new_images = [img for img in product.all_images[:15] 
                          if img not in self.processed_urls]
             
             if not new_images:

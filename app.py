@@ -450,6 +450,7 @@ def generate_captions_with_model(model_name, product_image_url, lifestyle_image_
 def main():
     st.sidebar.title("Navigation")
     page = st.sidebar.radio("Select a page", ["Caption Generator", "Product Scraper"])
+    page == "Product Scraper"
     
     if page == "Caption Generator":
         # Your existing caption generator code

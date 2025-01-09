@@ -4,10 +4,11 @@ import google.generativeai as genai
 from openai import OpenAI
 from typing import Dict, List
 import base64
-from config import OPENAI_API_KEY, GOOGLE_API_KEY, GROK_API_KEY
+from config import OPENAI_API_KEY, GEMINI_API_KEY_1, GEMINI_API_KEY_2, GROK_API_KEY
 import json
 import streamlit as st
 import httpx
+import time
 
 # llm_analyzers.py
 
@@ -18,7 +19,7 @@ class LLMAnalyzer:
     def _init_client(self):
         try:
             # Initialize Gemini
-            genai.configure(api_key=GOOGLE_API_KEY)
+            genai.configure(api_key=GEMINI_API_KEY_1)
             
             # Initialize OpenAI
             self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -26,18 +27,22 @@ class LLMAnalyzer:
             # Initialize XAI
             self.xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
             
+            # Initialize session state variables for rate limiting
+            if 'last_gemini_call' not in st.session_state:
+                st.session_state.last_gemini_call = 0
+            if 'last_gpt4_call' not in st.session_state:
+                st.session_state.last_gpt4_call = 0
+            if 'last_xai_call' not in st.session_state:
+                st.session_state.last_xai_call = 0
+            
             st.success("All LLM clients initialized successfully")
         except Exception as e:
             st.error(f"Error initializing LLM clients: {str(e)}")
 
     def analyze_images(self, images: List[str], page_text: str = "") -> Dict:
-        """Try all models in sequence until successful"""
+        """Try all models in sequence for each product until successful"""
         st.write("Starting image analysis...")
         st.write(f"Number of images to analyze: {len(images)}")
-        
-        errors = []
-        max_retries = 3
-        retry_count = 0
         
         # Normalize URLs and validate images before processing
         normalized_images = []
@@ -75,76 +80,46 @@ class LLMAnalyzer:
                 'confidence': 0.0
             }
 
-        while retry_count < max_retries:
-            st.write(f"Analysis attempt {retry_count + 1}/{max_retries}")
-            
-            # Try each model in sequence
-            models = [
-                ('Gemini', self._analyze_with_gemini),
-                ('GPT-4', self._analyze_with_gpt4),
-                ('XAI', self._analyze_with_xai)
-            ]
-            all_rate_limited = True
-            
-            for model_name, analyze_func in models:
-                try:
-                    st.write(f"Attempting analysis with {model_name}...")
-                    result = analyze_func(normalized_images, page_text)
-                    
-                    if result:
-                        st.write(f"Analysis successful with {model_name}")
-                        st.write("Results:", result)
-                        
-                        # Check image limit after successful analysis
-                        if hasattr(st.session_state, 'processed_images'):
-                            new_images = len(result['product_images']) + len(result['lifestyle_images'])
-                            st.session_state.processed_images += new_images
-                        else:
-                            st.session_state.processed_images = len(result['product_images']) + len(result['lifestyle_images'])
-                        
-                        if result['product_images'] or result['lifestyle_images']:
-                            return result
-                            
-                    all_rate_limited = False
-                except Exception as e:
-                    error_message = str(e).lower()
-                    error_desc = str(e)
-                    
-                    # Add more detailed error logging
-                    if "rate limit" in error_message or "quota exceeded" in error_message:
-                        st.warning(f"{model_name} rate limit reached: {error_desc}")
-                    else:
-                        st.error(f"{model_name} analysis failed: {error_desc}")
-                        all_rate_limited = False
-                    
-                    errors.append(f"{model_name}: {error_desc}")
-                    continue
-            
-            if all_rate_limited:
-                retry_count += 1
-                if retry_count < max_retries:
-                    pause_message = st.empty()
-                    for remaining in range(180, 0, -1):
-                        minutes = remaining // 60
-                        seconds = remaining % 60
-                        pause_message.warning(
-                            f"All models rate limited. Pausing for {minutes:02d}:{seconds:02d} "
-                            f"before retry {retry_count}/{max_retries}"
-                        )
-                        time.sleep(1)
-                    pause_message.empty()
-                else:
-                    st.error("Maximum retries reached due to rate limits")
-                    break
-            else:
-                break
+        # Try each model in sequence for the current set of images
+        models = [
+            ('Gemini', self._analyze_with_gemini),
+            ('GPT-4', self._analyze_with_gpt4),
+            ('XAI', self._analyze_with_xai)
+        ]
         
-        st.error("All image analysis attempts failed")
-        if errors:
-            st.error("Errors encountered:")
-            for error in errors:
-                st.error(error)
+        for model_name, analyze_func in models:
+            try:
+                st.write(f"Attempting analysis with {model_name}...")
+                result = analyze_func(normalized_images, page_text)
                 
+                if result:
+                    st.write(f"Analysis successful with {model_name}")
+                    st.write("Results:", result)
+                    
+                    # Check image limit after successful analysis
+                    if hasattr(st.session_state, 'processed_images'):
+                        new_images = len(result['product_images']) + len(result['lifestyle_images'])
+                        st.session_state.processed_images += new_images
+                    else:
+                        st.session_state.processed_images = len(result['product_images']) + len(result['lifestyle_images'])
+                    
+                    if result['product_images'] or result['lifestyle_images']:
+                        return result
+                        
+            except Exception as e:
+                error_message = str(e).lower()
+                error_desc = str(e)
+                
+                if "rate limit" in error_message or "quota exceeded" in error_message:
+                    st.warning(f"{model_name} rate limit reached: {error_desc}")
+                    # If rate limited, try next model
+                    continue
+                else:
+                    st.error(f"{model_name} analysis failed: {error_desc}")
+                    # For non-rate-limit errors, try next model
+                    continue
+        
+        st.error("All models failed to analyze images")
         return {
             'product_images': [],
             'lifestyle_images': [],
@@ -189,15 +164,57 @@ class LLMAnalyzer:
     def _analyze_with_gemini(self, images: List[str], page_text: str) -> Dict:
         st.write("Preparing Gemini analysis...")
         
-        # Initialize Gemini model with correct model name
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        
+        # Add rate limiting using session state
+        time_since_last_call = time.time() - st.session_state.last_gemini_call
+        if time_since_last_call < 6:  # 10 RPM = 1 request per 6 seconds
+            wait_time = 6 - time_since_last_call
+            st.info(f"Rate limiting: Waiting {wait_time:.1f} seconds...")
+            time.sleep(wait_time)
+        st.session_state.last_gemini_call = time.time()
+
+        # Initialize Gemini model
+        model = genai.GenerativeModel("gemini-exp-1206")
+
+        prompt = """Analyze these product images following these strict rules:
+
+Product Images Section Requirements:
+1. Front view MUST be first image in product images
+2. Back view and side view can be included after front view
+3. Must have neutral/solid background
+4. No humans/text (except on product)
+5. Clear lighting showing accurate colors
+6. Maximum 2 lifestyle images allowed here if they show product clearly
+
+Lifestyle Images Section Requirements:
+1. Must show product in real-life setting/use
+2. Can include humans using product
+3. Natural environment and lighting
+4. Product color MUST match product images section exactly
+5. NO product-only images allowed here
+6. Can be front/back/side view of product in use
+
+Additional Rules:
+- No duplicate images allowed in either section
+- Different color variants not allowed - must match product images exactly
+- Maximum 5 images per section
+- Ignore similar/related product images from the page
+- Only include images of the specific product being viewed
+- Lifestyle images can appear in both sections (max 2 in product section)
+- Product images must NEVER appear in lifestyle section
+
+Return JSON with:
+{
+    "product_images": ["url1", "url2"...],  # Front view first, then back/side views
+    "lifestyle_images": ["url1", "url2"...], # Only real lifestyle shots
+    "confidence": float between 0-1
+}"""
+
         # Prepare images and limit total payload size
         total_size = 0
         image_parts = []
         max_payload_size = 20 * 1024 * 1024  # 20MB limit
         
-        for url in images[:10]:  # Limit to first 10 images
+        for url in images:  # Limit to first 10 images
             try:
                 response = httpx.get(url, timeout=10)
                 response.raise_for_status()
@@ -222,29 +239,10 @@ class LLMAnalyzer:
         if not image_parts:
             raise Exception("No valid images could be processed")
 
-        prompt = """Analyze these product images and classify them as either product or lifestyle images.
-        
-        Product images should:
-        - Have neutral/solid background
-        - Show whole product
-        - Have no humans/text (except on product)
-        - Have clear lighting
-        
-        Lifestyle images should:
-        - Show product in real-life setting
-        - Can include humans
-        - Have natural lighting/environment
-        
-        Return JSON with:
-        {
-            "product_images": ["url1", "url2"...],
-            "lifestyle_images": ["url1", "url2"...],
-            "confidence": float between 0-1
-        }"""
-
         # Combine prompt with images
         content = [prompt] + image_parts
         content.append(f"Image URLs: {json.dumps(images)}")
+        content.append(f"Page text: {page_text[:1000]}")
         
         try:
             response = model.generate_content(content)
@@ -275,6 +273,11 @@ class LLMAnalyzer:
                 result["product_images"] = list(dict.fromkeys(result["product_images"]))
                 result["lifestyle_images"] = list(dict.fromkeys(result["lifestyle_images"]))
                 
+                # Validate front view is first in product images
+                if result["product_images"] and not self._is_front_view(result["product_images"][0], page_text):
+                    st.warning("Front view not detected as first product image, reordering...")
+                    result["product_images"] = self._reorder_product_images(result["product_images"], page_text)
+                
                 return result
                 
             except json.JSONDecodeError:
@@ -285,6 +288,18 @@ class LLMAnalyzer:
             st.error(f"Gemini API error: {str(e)}")
             raise
 
+    def _is_front_view(self, image_url: str, page_text: str) -> bool:
+        """Check if image is likely a front view based on URL and context"""
+        front_indicators = ['front', 'main', 'primary', 'default', 'hero']
+        url_lower = image_url.lower()
+        return any(indicator in url_lower or indicator in page_text.lower() for indicator in front_indicators)
+
+    def _reorder_product_images(self, images: List[str], page_text: str) -> List[str]:
+        """Ensure front view is first in product images"""
+        front_images = [img for img in images if self._is_front_view(img, page_text)]
+        other_images = [img for img in images if img not in front_images]
+        return front_images + other_images if front_images else images
+
     def _analyze_with_gpt4(self, images: List[str], page_text: str) -> Dict:
         st.write("Preparing GPT-4O analysis...")
                 
@@ -293,7 +308,7 @@ class LLMAnalyzer:
         image_parts = []
         max_payload_size = 20 * 1024 * 1024  # 20MB limit
         
-        for url in images[:10]:  # Limit to first 10 images
+        for url in images:  # Limit to first 10 images
             try:
                 response = httpx.get(url, timeout=10)
                 response.raise_for_status()
@@ -318,28 +333,37 @@ class LLMAnalyzer:
         if not image_parts:
             raise Exception("No valid images could be processed")        
         
-        prompt = """Analyze these product images according to the following criteria:
+        prompt = """Analyze these product images following these strict rules:
 
-Product Image Criteria:
-- Must be isolated with transparent/solid color neutral background
-- No humans, text, or graphics (except on product)
-- No artifacts or extreme aspect ratios
-- Not in real-life setting
-- Show whole product
-- Clear lighting showing accurate colors
+Product Images Section Requirements:
+1. Front view MUST be first image in product images
+2. Back view and side view can be included after front view
+3. Must have neutral/solid background
+4. No humans/text (except on product)
+5. Clear lighting showing accurate colors
+6. Maximum 2 lifestyle images allowed here if they show product clearly
 
-Lifestyle Image Criteria:
-- Shows product in real-life setting/use
-- Can include humans and multiple product instances
-- Natural environment and lighting
-- No artificial artifacts
-- Shows whole product
+Lifestyle Images Section Requirements:
+1. Must show product in real-life setting/use
+2. Can include humans using product
+3. Natural environment and lighting
+4. Product color MUST match product images section exactly
+5. NO product-only images allowed here
+6. Can be front/back/side view of product in use
 
-Classify each image as either product or lifestyle image based on these criteria.
-Return JSON with two lists of up to 5 URLs each:
+Additional Rules:
+- No duplicate images allowed in either section
+- Different color variants not allowed - must match product images exactly
+- Maximum 5 images per section
+- Ignore similar/related product images from the page
+- Only include images of the specific product being viewed
+- Lifestyle images can appear in both sections (max 2 in product section)
+- Product images must NEVER appear in lifestyle section
+
+Return JSON with:
 {
-    "product_images": ["url1", "url2"...],
-    "lifestyle_images": ["url1", "url2"...],
+    "product_images": ["url1", "url2"...],  # Front view first, then back/side views
+    "lifestyle_images": ["url1", "url2"...], # Only real lifestyle shots
     "confidence": float between 0-1
 }"""
         
@@ -392,7 +416,36 @@ Return JSON with two lists of up to 5 URLs each:
         # Remove markdown code block indicators and 'json' label if present
         response_text = response_text.replace('```json', '').replace('```', '').strip()
         
-        return json.loads(response_text)
+        try:
+            result = json.loads(response_text)
+            if not isinstance(result, dict):
+                raise ValueError("Response is not a dictionary")
+                
+            # Validate response format and clean up arrays
+            required_keys = ["product_images", "lifestyle_images", "confidence"]
+            if not all(key in result for key in required_keys):
+                raise ValueError("Response missing required keys")
+            
+            # Ensure arrays are properly formatted (no numeric indices)
+            if isinstance(result["product_images"], dict):
+                result["product_images"] = list(result["product_images"].values())
+            if isinstance(result["lifestyle_images"], dict):
+                result["lifestyle_images"] = list(result["lifestyle_images"].values())
+                
+            # Remove duplicates while preserving order
+            result["product_images"] = list(dict.fromkeys(result["product_images"]))
+            result["lifestyle_images"] = list(dict.fromkeys(result["lifestyle_images"]))
+            
+            # Validate front view is first in product images
+            if result["product_images"] and not self._is_front_view(result["product_images"][0], page_text):
+                st.warning("Front view not detected as first product image, reordering...")
+                result["product_images"] = self._reorder_product_images(result["product_images"], page_text)
+            
+            return result
+            
+        except json.JSONDecodeError:
+            st.error(f"Invalid JSON response: {response_text}")
+            raise
 
     def _analyze_with_xai(self, images: List[str], page_text: str) -> Dict:
         st.write("Preparing Grok analysis...")
@@ -402,7 +455,7 @@ Return JSON with two lists of up to 5 URLs each:
         image_parts = []
         max_payload_size = 20 * 1024 * 1024  # 20MB limit
         
-        for url in images[:10]:  # Limit to first 10 images
+        for url in images:  # Limit to first 10 images
             try:
                 response = httpx.get(url, timeout=10)
                 response.raise_for_status()
@@ -426,28 +479,37 @@ Return JSON with two lists of up to 5 URLs each:
 
         if not image_parts:
             raise Exception("No valid images could be processed")          
-        prompt = """Analyze these product images according to the following criteria:
+        prompt = """Analyze these product images following these strict rules:
 
-Product Image Criteria:
-- Must be isolated with transparent/solid color neutral background
-- No humans, text, or graphics (except on product)
-- No artifacts or extreme aspect ratios
-- Not in real-life setting
-- Show whole product
-- Clear lighting showing accurate colors
+Product Images Section Requirements:
+1. Front view MUST be first image in product images
+2. Back view and side view can be included after front view
+3. Must have neutral/solid background
+4. No humans/text (except on product)
+5. Clear lighting showing accurate colors
+6. Maximum 2 lifestyle images allowed here if they show product clearly
 
-Lifestyle Image Criteria:
-- Shows product in real-life setting/use
-- Can include humans and multiple product instances
-- Natural environment and lighting
-- No artificial artifacts
-- Shows whole product
+Lifestyle Images Section Requirements:
+1. Must show product in real-life setting/use
+2. Can include humans using product
+3. Natural environment and lighting
+4. Product color MUST match product images section exactly
+5. NO product-only images allowed here
+6. Can be front/back/side view of product in use
 
-Classify each image as either product or lifestyle image based on these criteria.
-Return JSON with two lists of up to 5 URLs each:
+Additional Rules:
+- No duplicate images allowed in either section
+- Different color variants not allowed - must match product images exactly
+- Maximum 5 images per section
+- Ignore similar/related product images from the page
+- Only include images of the specific product being viewed
+- Lifestyle images can appear in both sections (max 2 in product section)
+- Product images must NEVER appear in lifestyle section
+
+Return JSON with:
 {
-    "product_images": ["url1", "url2"...],
-    "lifestyle_images": ["url1", "url2"...],
+    "product_images": ["url1", "url2"...],  # Front view first, then back/side views
+    "lifestyle_images": ["url1", "url2"...], # Only real lifestyle shots
     "confidence": float between 0-1
 }"""
         
@@ -500,7 +562,36 @@ Return JSON with two lists of up to 5 URLs each:
         # Remove markdown code block indicators and 'json' label if present
         response_text = response_text.replace('```json', '').replace('```', '').strip()
         
-        return json.loads(response_text)
+        try:
+            result = json.loads(response_text)
+            if not isinstance(result, dict):
+                raise ValueError("Response is not a dictionary")
+                
+            # Validate response format and clean up arrays
+            required_keys = ["product_images", "lifestyle_images", "confidence"]
+            if not all(key in result for key in required_keys):
+                raise ValueError("Response missing required keys")
+            
+            # Ensure arrays are properly formatted (no numeric indices)
+            if isinstance(result["product_images"], dict):
+                result["product_images"] = list(result["product_images"].values())
+            if isinstance(result["lifestyle_images"], dict):
+                result["lifestyle_images"] = list(result["lifestyle_images"].values())
+                
+            # Remove duplicates while preserving order
+            result["product_images"] = list(dict.fromkeys(result["product_images"]))
+            result["lifestyle_images"] = list(dict.fromkeys(result["lifestyle_images"]))
+            
+            # Validate front view is first in product images
+            if result["product_images"] and not self._is_front_view(result["product_images"][0], page_text):
+                st.warning("Front view not detected as first product image, reordering...")
+                result["product_images"] = self._reorder_product_images(result["product_images"], page_text)
+            
+            return result
+            
+        except json.JSONDecodeError:
+            st.error(f"Invalid JSON response: {response_text}")
+            raise
         
 class URLAnalyzer:
     def __init__(self):
@@ -509,7 +600,7 @@ class URLAnalyzer:
     def _init_client(self):
         try:
             # Initialize Gemini
-            genai.configure(api_key=GOOGLE_API_KEY)
+            genai.configure(api_key=GEMINI_API_KEY_2)
             
             # Initialize OpenAI
             self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -517,34 +608,46 @@ class URLAnalyzer:
             # Initialize XAI
             self.xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
             
+            # Initialize session state variables for rate limiting
+            if 'last_gemini_call' not in st.session_state:
+                st.session_state.last_gemini_call = 0
+            if 'last_gpt4_call' not in st.session_state:
+                st.session_state.last_gpt4_call = 0
+            if 'last_xai_call' not in st.session_state:
+                st.session_state.last_xai_call = 0
+            
             st.success("All LLM clients initialized successfully")
         except Exception as e:
             st.error(f"Error initializing LLM clients: {str(e)}")
     
     def analyze_urls(self, urls: List[str], context: Dict) -> Dict[str, List[str]]:
-        """Try different models to analyze URLs"""
-        analyzers = [
-            self._analyze_with_gemini,
-            self._analyze_with_gpt4,
-            self._analyze_with_xai
-        ]
-
-        normalized_urls = [
-            url if url.startswith(('http://', 'https://')) 
-            else f'https:{url}' if url.startswith('//') 
-            else f'https://{url}'
-            for url in urls
+        """Try different models in sequence to analyze URLs"""
+        st.write("Starting URL analysis...")
+        
+        # Try each model in sequence
+        models = [
+            ('Gemini', self._analyze_with_gemini),
+            ('GPT-4', self._analyze_with_gpt4),
+            ('XAI', self._analyze_with_xai)
         ]
         
-        for analyzer in analyzers:
+        for model_name, analyzer in models:
             try:
-                result = analyzer(normalized_urls, context)
+                st.write(f"Attempting analysis with {model_name}...")
+                result = analyzer(urls, context)
                 if result:
+                    st.write(f"Analysis successful with {model_name}")
                     return result
             except Exception as e:
-                st.warning(f"Analyzer failed: {str(e)}")
-                continue
-                
+                error_message = str(e).lower()
+                if "rate limit" in error_message or "quota exceeded" in error_message:
+                    st.warning(f"{model_name} rate limit reached, trying next model...")
+                    continue
+                else:
+                    st.error(f"{model_name} analysis failed: {str(e)}")
+                    continue
+            
+        st.error("All models failed to analyze URLs")
         return {
             'product_pages': [],
             'pagination_links': [],
@@ -587,15 +690,17 @@ class URLAnalyzer:
             }
 
     def _analyze_with_gpt4(self, urls: List[str], context: Dict) -> Dict[str, List[str]]:
-        prompt = """Analyze these URLs and page context to identify:
-        1. Product detail pages
-        2. Pagination links
+        prompt = """Analyze these URLs and page context to classify them into three categories:
+        1. Product pages (individual product details)
+        2. Pagination links (next/previous page links)
         3. Category/filter pages
         
-        URLs to analyze: {urls}
-        Context: {context}
-        
-        Return classification in JSON format."""
+        Return JSON with:
+        {
+            "product_pages": ["url1", "url2"],
+            "pagination_links": ["url1", "url2"],
+            "category_pages": ["url1", "url2"]
+        }"""
         
         formatted_prompt = prompt.format(
             urls=json.dumps(urls),
@@ -622,15 +727,17 @@ class URLAnalyzer:
             }
 
     def _analyze_with_xai(self, urls: List[str], context: Dict) -> Dict[str, List[str]]:
-        prompt = """Classify these e-commerce URLs into:
-        1. Product pages
-        2. Pagination links
-        3. Category pages
+        prompt = """Analyze these URLs and page context to classify them into three categories:
+        1. Product pages (individual product details)
+        2. Pagination links (next/previous page links)
+        3. Category/filter pages
         
-        URLs to analyze: {urls}
-        Context: {context}
-        
-        Return classification in JSON format."""
+        Return JSON with:
+        {
+            "product_pages": ["url1", "url2"],
+            "pagination_links": ["url1", "url2"],
+            "category_pages": ["url1", "url2"]
+        }"""
         
         formatted_prompt = prompt.format(
             urls=json.dumps(urls),
@@ -663,7 +770,7 @@ class PageAnalyzer:
     def _init_client(self):
         try:
             # Initialize Gemini
-            genai.configure(api_key=GOOGLE_API_KEY)
+            genai.configure(api_key=GEMINI_API_KEY_2)
             
             # Initialize OpenAI
             self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -671,34 +778,47 @@ class PageAnalyzer:
             # Initialize XAI
             self.xai_client = OpenAI(api_key=GROK_API_KEY, base_url="https://api.x.ai/v1")
             
+            # Initialize session state variables for rate limiting
+            if 'last_gemini_call' not in st.session_state:
+                st.session_state.last_gemini_call = 0
+            if 'last_gpt4_call' not in st.session_state:
+                st.session_state.last_gpt4_call = 0
+            if 'last_xai_call' not in st.session_state:
+                st.session_state.last_xai_call = 0
+            
             st.success("All LLM clients initialized successfully")
         except Exception as e:
             st.error(f"Error initializing LLM clients: {str(e)}")
     
     def is_product_page(self, url: str, content: str, platform_context: Dict) -> bool:
-        """Determine if a page is a product page using LLM analysis"""
-        analyzers = [
-            self._check_with_gemini,
-            self._check_with_gpt4,
-            self._check_with_xai
-        ]
-
-        normalized_url = (
-            url if url.startswith(('http://', 'https://')) 
-            else f'https:{url}' if url.startswith('//') 
-            else f'https://{url}'
-        )
+        """Determine if a page is a product page using sequential LLM analysis"""
+        st.write("Starting page analysis...")
         
-        for analyzer in analyzers:
+        # Try each model in sequence
+        models = [
+            ('Gemini', self._check_with_gemini),
+            ('GPT-4', self._check_with_gpt4),
+            ('XAI', self._check_with_xai)
+        ]
+        
+        for model_name, analyzer in models:
             try:
-                result = analyzer(normalized_url, content, platform_context)
+                st.write(f"Attempting analysis with {model_name}...")
+                result = analyzer(url, content, platform_context)
                 if result is not None:
+                    st.write(f"Analysis successful with {model_name}")
                     return result
             except Exception as e:
-                st.warning(f"Page analyzer failed: {str(e)}")
-                continue
-                
-        return False
+                error_message = str(e).lower()
+                if "rate limit" in error_message or "quota exceeded" in error_message:
+                    st.warning(f"{model_name} rate limit reached, trying next model...")
+                    continue
+                else:
+                    st.error(f"{model_name} analysis failed: {str(e)}")
+                    continue
+            
+        st.error("All models failed to analyze page")
+        return False  # Default to False if all attempts fail
 
     def _check_with_gemini(self, url: str, content: str, context: Dict) -> bool:
         # Prompt for analysis
