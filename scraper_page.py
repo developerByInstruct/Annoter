@@ -347,17 +347,12 @@ def process_raw_products(raw_products: List[ScrapedProduct], max_products: int, 
         processed_products = checkpoint.get('processed_products', [])
         st.info(f"Resuming from checkpoint: {start_index} products processed")
         
-        # Calculate remaining products to process
-        remaining_products = max_products - len(processed_products)
-        if remaining_products <= 0:
-            st.success("Already processed requested number of products")
-            # Convert processed products to DataFrame and return
-            processed_objects = [ProcessedProduct(**p) for p in processed_products]
-            pipeline = DataPreparationPipeline([])  # Empty pipeline just for DataFrame creation
-            return pipeline._create_final_dataframe(processed_objects)
-            
-        max_products = remaining_products
-        st.info(f"Will process {remaining_products} more products")
+        # Calculate target number of products (existing + new max_products)
+        target_products = len(processed_products) + max_products
+        st.info(f"Will process up to {target_products} products total ({len(processed_products)} existing + {max_products} new)")
+        
+        # Adjust max_products to reach target
+        max_products = target_products - len(processed_products)
     
     pipeline = DataPreparationPipeline(raw_products[start_index:start_index + max_products])
     
