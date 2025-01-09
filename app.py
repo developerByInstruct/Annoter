@@ -18,7 +18,7 @@ from data_pipeline import DataPreparationPipeline
 st.set_page_config(
     page_title="Centurion Automation",
     page_icon="🚀",  # You can change this
-    layout="wide"     # Optional
+    layout="centered"     # Optional
 )
 
 # Add custom CSS to hide the radio button
