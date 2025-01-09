@@ -130,7 +130,7 @@ Return JSON with:
                 st.write(f"Attempting analysis with {model_name}...")
                 result = analyze_func(normalized_images, page_text)
                 
-                if result:
+                if result and (result['product_images'] or result['lifestyle_images']):
                     st.write(f"Analysis successful with {model_name}")
                     st.write("Results:", result)
                     
@@ -141,9 +141,8 @@ Return JSON with:
                     else:
                         st.session_state.processed_images = len(result['product_images']) + len(result['lifestyle_images'])
                     
-                    if result['product_images'] or result['lifestyle_images']:
-                        return result
-                        
+                    return result
+                    
             except Exception as e:
                 error_message = str(e).lower()
                 error_desc = str(e)
@@ -507,7 +506,7 @@ class URLAnalyzer:
             try:
                 st.write(f"Attempting analysis with {model_name}...")
                 result = analyzer(urls, context)
-                if result:
+                if result and any(result.values()):  # Check if any lists have values
                     st.write(f"Analysis successful with {model_name}")
                     return result
             except Exception as e:
@@ -675,7 +674,7 @@ class PageAnalyzer:
             try:
                 st.write(f"Attempting analysis with {model_name}...")
                 result = analyzer(url, content, platform_context)
-                if result is not None:
+                if result is not None:  # Only show success if we got a valid result
                     st.write(f"Analysis successful with {model_name}")
                     return result
             except Exception as e:
