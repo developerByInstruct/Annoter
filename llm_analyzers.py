@@ -716,9 +716,13 @@ class URLAnalyzer:
             }],
             max_tokens=1000
         )
+        # Clean up the response text
+        response_text = response.choices[0].message.content
+        # Remove markdown code block indicators and 'json' label if present
+        response_text = response_text.replace('```json', '').replace('```', '').strip()        
         
         try:
-            return json.loads(response.choices[0].message.content)
+            return json.loads(response_text)
         except json.JSONDecodeError:
             return {
                 "product_pages": [],
@@ -754,8 +758,13 @@ class URLAnalyzer:
             max_tokens=1000
         )
         
+        # Clean up the response text
+        response_text = response.choices[0].message.content
+        # Remove markdown code block indicators and 'json' label if present
+        response_text = response_text.replace('```json', '').replace('```', '').strip() 
+
         try:
-            return json.loads(response.choices[0].message.content)
+            return json.loads(response_text)
         except json.JSONDecodeError:
             return {
                 "product_pages": [],
@@ -889,7 +898,10 @@ class PageAnalyzer:
                 max_tokens=1000
             )
             
-            response_text = response.choices[0].message.content.strip()
+            st.write("GPT-4 API response received")
+
+            # Clean up and parse response
+            response_text = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
             result = json.loads(response_text)
             
             if not isinstance(result, dict) or "is_product_page" not in result:
@@ -929,7 +941,10 @@ class PageAnalyzer:
                 max_tokens=1000
             )
             
-            response_text = response.choices[0].message.content.strip()
+            st.write("XAI API response received")
+
+            # Clean up and parse response
+            response_text = response.choices[0].message.content.replace("```json", "").replace("```", "").strip()
             result = json.loads(response_text)
             
             if not isinstance(result, dict) or "is_product_page" not in result:
