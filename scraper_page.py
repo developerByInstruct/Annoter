@@ -345,16 +345,30 @@ def process_raw_products(raw_products: List[ScrapedProduct], max_products: int, 
     if checkpoint:
         start_index = checkpoint.get('last_processed_index', 0)
         processed_products = checkpoint.get('processed_products', [])
+        st.info(f"Resuming from checkpoint: {start_index} products processed")
         
+        # Calculate remaining products to process
+        remaining_products = max_products - len(processed_products)
+        if remaining_products <= 0:
+            st.success("Already processed requested number of products")
+            # Convert processed products to DataFrame and return
+            processed_objects = [ProcessedProduct(**p) for p in processed_products]
+            pipeline = DataPreparationPipeline([])  # Empty pipeline just for DataFrame creation
+            return pipeline._create_final_dataframe(processed_objects)
+            
+        max_products = remaining_products
+        st.info(f"Will process {remaining_products} more products")
+    
     pipeline = DataPreparationPipeline(raw_products[start_index:start_index + max_products])
     
     with st.spinner("Processing raw products..."):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
+        total_to_process = len(pipeline.raw_products)
         for i, product in enumerate(pipeline.raw_products):
             current_index = start_index + i
-            status_text.text(f"Processing product {current_index + 1}/{len(raw_products)}")
+            status_text.text(f"Processing product {current_index + 1}/{len(raw_products)} (Batch progress: {i + 1}/{total_to_process})")
             
             # Process product
             processed = pipeline._process_single_product(product)
@@ -363,22 +377,23 @@ def process_raw_products(raw_products: List[ScrapedProduct], max_products: int, 
                 processed_dict = {
                     'brand_url': processed.brand_url,
                     'product_url': processed.product_url,
-                    'product_images': processed.product_images if processed.product_images else "",  # Take first image
-                    'lifestyle_images': processed.lifestyle_images if processed.lifestyle_images else "",  # Take first image
+                    'product_images': processed.product_images if processed.product_images else "",
+                    'lifestyle_images': processed.lifestyle_images if processed.lifestyle_images else "",
                     'confidence': processed.confidence,
-                    'status': "",
-                    'assigned_to': ""
+                    'status': processed.status,
+                    'assigned_to': processed.assigned_to
                 }
                 processed_products.append(processed_dict)
                 
             # Update progress
-            progress = (i + 1) / len(pipeline.raw_products)
+            progress = (i + 1) / total_to_process
             progress_bar.progress(progress)
             
-            # Save checkpoint
+            # Save checkpoint with timestamp
             checkpoint_data = {
                 'last_processed_index': current_index + 1,
-                'processed_products': processed_products
+                'processed_products': processed_products,
+                'timestamp': datetime.now().isoformat()
             }
             checkpoint_manager.save_process_checkpoint(checkpoint_data)
             
@@ -571,8 +586,9 @@ def display_scraper_page():
     else:  # Process Raw Products
         # Show checkpoint info if exists
         if process_checkpoint:
-            st.info(f"Found existing checkpoint from {process_checkpoint.get('timestamp')}")
+            st.info(f"Found existing checkpoint from {process_checkpoint.get('timestamp', '')}")
             st.info(f"Products processed so far: {len(process_checkpoint.get('processed_products', []))}")
+            st.info(f"Last processed index: {process_checkpoint.get('last_processed_index', 0)}")
             st.info(f"Checkpoint location: {checkpoint_manager.process_checkpoint}")
             
             col1, col2 = st.columns(2)
@@ -582,8 +598,33 @@ def display_scraper_page():
                 new_processing = st.button("Start New Processing")
                 
             if continue_processing:
-                # Will use existing checkpoint in processing
-                pass
+                if not hasattr(st.session_state, 'raw_products'):
+                    st.error("No raw products data found. Please upload a file first.")
+                    st.stop()
+                    
+                try:
+                    df = process_raw_products(st.session_state.raw_products, max_items, checkpoint_manager)
+                    
+                    if not df.empty:
+                        st.write(f"Processed {len(df)} products")
+                        st.dataframe(df)
+                        
+                        # Download option
+                        excel_buffer = io.BytesIO()
+                        df.to_excel(excel_buffer, index=False)
+                        st.download_button(
+                            label="Download Excel",
+                            data=excel_buffer.getvalue(),
+                            file_name="processed_products.xlsx",
+                            mime="application/vnd.ms-excel"
+                        )
+                    else:
+                        st.warning("No products could be processed.")
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
+                    st.exception(e)
+                st.stop()
+                
             elif new_processing:
                 checkpoint_manager.clear_checkpoints()
                 st.rerun()
@@ -597,11 +638,13 @@ def display_scraper_page():
                 if uploaded_file.name.endswith('.json'):
                     raw_data = json.load(uploaded_file)
                     raw_products = [ScrapedProduct(**p) for p in raw_data]
+                    # Store raw_products in session state for continuation
+                    st.session_state.raw_products = raw_products
                 else:
                     st.error("Input file must be a JSON file of scraped products.")
                     return
                 
-                df = process_raw_products(raw_products, max_items, CheckpointManager())
+                df = process_raw_products(raw_products, max_items, checkpoint_manager)
                 
                 if not df.empty:
                     st.write(f"Processed {len(df)} products")
