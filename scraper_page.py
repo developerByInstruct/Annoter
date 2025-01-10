@@ -19,6 +19,9 @@ import json
 import os
 import pandas as pd
 from datetime import datetime
+import time
+import random
+import re
 
 @dataclass
 class ScrapedProduct:
@@ -44,17 +47,33 @@ class ProductScraper:
     def __init__(self, brand_url: str):
         self.brand_url = brand_url
         self.visited_urls = set()
-        self.processed_product_urls = set()  # Track processed product URLs
+        self.processed_product_urls = set()
         self.raw_products = []
         self.max_depth = 3
         self.rate_limiter = RateLimiter()
         self.checkpoint_manager = CheckpointManager()
         self.url_analyzer = URLAnalyzer()
         self.page_analyzer = PageAnalyzer()
-        self.error_handler = ErrorHandler()  # Initialize error handler
-        self.urls_to_visit = [brand_url]  # Initialize with brand URL
-        self.pagination_queue = []  # Initialize pagination queue
+        self.error_handler = ErrorHandler()
+        self.urls_to_visit = [brand_url]
+        self.pagination_queue = []
         self.last_url = None
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0'
+        }
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
         
         # Initialize platform detection
         self.platform = None
@@ -62,14 +81,301 @@ class ProductScraper:
         
         # Try to detect platform from URL
         try:
-            response = requests.get(brand_url)
+            response = self.session.get(brand_url)
             soup = BeautifulSoup(response.text, 'html.parser')
             self.platform = PlatformDetector.detect_platform(brand_url, response.text)
             self.adapter = PlatformAdapter(self.platform)
+            
+            # Extract and store any necessary cookies or tokens
+            self._extract_tokens(soup, response)
         except Exception as e:
             st.error(f"Error detecting platform: {str(e)}")
             self.platform = None
             self.adapter = PlatformAdapter(None)
+
+    def _extract_tokens(self, soup: BeautifulSoup, response: requests.Response) -> None:
+        """Extract any necessary tokens or cookies for subsequent requests"""
+        try:
+            # Look for common CSRF token patterns
+            csrf_token = None
+            # Check meta tags
+            csrf_meta = soup.find('meta', {'name': ['csrf-token', '_csrf', 'csrf-param']})
+            if csrf_meta and 'content' in csrf_meta.attrs:
+                csrf_token = csrf_meta['content']
+            
+            # Check form inputs
+            if not csrf_token:
+                csrf_input = soup.find('input', {'name': ['csrf_token', '_csrf', '__RequestVerificationToken']})
+                if csrf_input and 'value' in csrf_input.attrs:
+                    csrf_token = csrf_input['value']
+            
+            # Store any found tokens
+            if csrf_token:
+                self.session.headers.update({
+                    'X-CSRF-Token': csrf_token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                })
+            
+            # Store any cookies set by the response
+            if response.cookies:
+                self.session.cookies.update(response.cookies)
+                
+        except Exception as e:
+            st.warning(f"Error extracting tokens: {str(e)}")
+
+    def _extract_links(self, url: str) -> Dict[str, List[str]]:
+        """Enhanced link extraction with JavaScript rendering fallback"""
+        try:
+            # First try normal request
+            response = self.session.get(url, timeout=30)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Get all links including JavaScript-rendered ones
+            all_links = set()
+            
+            # Standard href links
+            for a in soup.find_all('a', href=True):
+                link = urljoin(self.brand_url, a['href'])
+                if link.startswith(self.brand_url):
+                    all_links.add(link)
+            
+            # Look for links in onclick attributes
+            onclick_elements = soup.find_all(attrs={'onclick': True})
+            for elem in onclick_elements:
+                onclick = elem['onclick']
+                # Extract URLs from JavaScript
+                urls = re.findall(r'["\'](https?://[^"\'\s]+)["\']', onclick)
+                for url in urls:
+                    if url.startswith(self.brand_url):
+                        all_links.add(url)
+            
+            # Look for links in data attributes
+            for elem in soup.find_all(attrs=lambda x: any(k.startswith('data-') for k in x.keys())):
+                for attr in elem.attrs:
+                    if attr.startswith('data-'):
+                        value = elem[attr]
+                        if isinstance(value, str) and (value.startswith('http') or value.startswith('/')):
+                            link = urljoin(self.brand_url, value)
+                            if link.startswith(self.brand_url):
+                                all_links.add(link)
+            
+            # Look for JSON-LD product data
+            for script in soup.find_all('script', {'type': 'application/ld+json'}):
+                try:
+                    data = json.loads(script.string)
+                    if isinstance(data, dict):
+                        if data.get('@type') == 'Product' and 'url' in data:
+                            link = urljoin(self.brand_url, data['url'])
+                            if link.startswith(self.brand_url):
+                                all_links.add(link)
+                except:
+                    continue
+            
+            # Get platform-specific context
+            platform_context = self.adapter.get_platform_context(soup)
+            
+            # Use URL analyzer with enhanced context
+            context = {
+                'url': url,
+                'title': soup.title.text if soup.title else '',
+                'platform': self.platform,
+                'platform_context': platform_context,
+                'response_status': response.status_code,
+                'content_type': response.headers.get('content-type', ''),
+                'page_type_hints': self._get_page_type_hints(soup)
+            }
+            
+            classification = self.url_analyzer.analyze_urls(list(all_links), context)
+            
+            return {
+                'product_pages': [url for url in classification['product_pages'] 
+                                if url not in self.visited_urls],
+                'pagination_links': [url for url in classification['pagination_links'] 
+                                   if url not in self.visited_urls],
+                'category_pages': classification['category_pages']
+            }
+            
+        except Exception as e:
+            self.error_handler.handle_url_error(url, e)
+            return {'product_pages': [], 'pagination_links': [], 'category_pages': []}
+
+    def _get_page_type_hints(self, soup: BeautifulSoup) -> Dict[str, bool]:
+        """Extract hints about page type from HTML structure"""
+        hints = {
+            'has_product_schema': bool(soup.find('script', {'type': 'application/ld+json'})),
+            'has_add_to_cart': bool(soup.find(string=re.compile(r'add.*to.*cart', re.I))),
+            'has_price': bool(soup.find(string=re.compile(r'\$\d+|\d+\.\d{2}'))),
+            'has_product_gallery': bool(soup.find(class_=re.compile(r'product.*gallery|gallery.*product', re.I))),
+            'has_product_title': bool(soup.find(class_=re.compile(r'product.*title|title.*product', re.I))),
+            'has_pagination': bool(soup.find(class_=re.compile(r'pagination|pager', re.I)))
+        }
+        return hints
+
+    def _is_product_page(self, url: str) -> bool:
+        """Enhanced product page detection"""
+        try:
+            response = self.session.get(url)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Get platform-specific context
+            platform_context = self.adapter.get_platform_context(soup)
+            
+            # Add page type hints to context
+            platform_context['page_hints'] = self._get_page_type_hints(soup)
+            
+            return self.page_analyzer.is_product_page(
+                url,
+                soup.get_text(),
+                platform_context
+            )
+            
+        except Exception as e:
+            self.error_handler.handle_url_error(url, e)
+            return False
+
+    def _scrape_page(self, url: str) -> Optional[ScrapedProduct]:
+        """Enhanced page scraping with anti-blocking measures"""
+        try:
+            # Add random delay between requests
+            time.sleep(random.uniform(2, 5))
+            
+            response = self.session.get(url)
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Get platform-specific selectors
+            selectors = self.adapter.get_product_selectors()
+            
+            # First try to get images from product-specific containers
+            product_images = []
+            
+            # Try common product gallery containers first
+            gallery_containers = soup.find_all(class_=lambda x: x and any(term in str(x).lower() 
+                for term in ['product-gallery', 'product-images', 'product-photos', 'gallery-container',
+                            'main-image', 'product-media', 'product-thumbnails', 'product-slider']))
+            
+            # If no gallery containers found, try JavaScript rendered content
+            if not gallery_containers:
+                # Look for image URLs in JavaScript variables
+                scripts = soup.find_all('script')
+                for script in scripts:
+                    if script.string:
+                        # Look for common patterns of image URLs in JavaScript
+                        urls = re.findall(r'["\'](https?://[^"\'\s]+\.(?:jpg|jpeg|png|gif|webp))["\']', script.string)
+                        for url in urls:
+                            if self._is_valid_image_url(url):
+                                product_images.append(self._normalize_url(url))
+            
+            for container in gallery_containers:
+                images = container.find_all('img')
+                for img in images:
+                    if 'src' in img.attrs:
+                        product_images.append(self._normalize_url(img['src']))
+                    elif 'data-src' in img.attrs:
+                        product_images.append(self._normalize_url(img['data-src']))
+                    # Check for lazy-loaded images
+                    for attr in img.attrs:
+                        if 'lazy' in attr.lower() and img[attr].startswith(('http', '//')):
+                            product_images.append(self._normalize_url(img[attr]))
+            
+            # If still no images found, try product-specific image attributes
+            if not product_images:
+                images = soup.find_all('img', attrs={
+                    'class': lambda x: x and any(term in str(x).lower() 
+                        for term in ['product', 'gallery', 'main-image', 'featured']),
+                    'id': lambda x: x and any(term in str(x).lower() 
+                        for term in ['product', 'gallery', 'main-image', 'featured'])
+                })
+                
+                for img in images:
+                    if 'src' in img.attrs:
+                        product_images.append(self._normalize_url(img['src']))
+                    elif 'data-src' in img.attrs:
+                        product_images.append(self._normalize_url(img['data-src']))
+            
+            # Filter out common non-product images
+            filtered_images = []
+            excluded_patterns = [
+                'logo', 'icon', 'banner', 'payment', 'social', 'related', 'recommended',
+                'cart', 'shipping', 'guarantee', 'review', 'rating', 'thumbnail-mini',
+                'placeholder', 'advertisement', 'promotion', 'widget', 'footer', 'header'
+            ]
+            
+            for img_url in product_images:
+                if not any(pattern in img_url.lower() for pattern in excluded_patterns):
+                    filtered_images.append(img_url)
+            
+            # Remove duplicate URLs while preserving order
+            seen = set()
+            unique_images = []
+            for img in filtered_images:
+                if img not in seen:
+                    seen.add(img)
+                    unique_images.append(img)
+            
+            text = soup.get_text(separator='\n', strip=True)
+
+            # Enhanced metadata extraction
+            metadata = self._extract_metadata(soup)
+            
+            # Add logging
+            st.write(f"Scraped data for {url}:")
+            st.write(f"Title: {metadata.get('title', '')}")
+            st.write(f"Description: {metadata.get('description', '')}")
+            st.write(f"Total images found: {len(product_images)}")
+            st.write(f"After filtering: {len(filtered_images)}")
+            st.write(f"Unique product images: {len(unique_images)}")
+            st.write(f"First 15 unique product images: {unique_images[:15]}")
+            st.write(f"Text: {text[:100]}...")
+
+            return ScrapedProduct(
+                url=url,
+                title=metadata.get('title', ''),
+                description=metadata.get('description', ''),
+                all_images=unique_images[:15],
+                page_text=text,
+                metadata=metadata
+            )
+            
+        except Exception as e:
+            self.error_handler.handle_url_error(url, e)
+            return None
+
+    def _extract_metadata(self, soup: BeautifulSoup) -> Dict:
+        """Enhanced metadata extraction"""
+        metadata = {}
+        
+        # Basic metadata
+        metadata['title'] = soup.find('title').text if soup.find('title') else ''
+        description_meta = soup.find('meta', {'name': 'description'})
+        metadata['description'] = description_meta['content'] if description_meta else ''
+        
+        # Extract structured data
+        structured_data = []
+        for script in soup.find_all('script', {'type': 'application/ld+json'}):
+            try:
+                data = json.loads(script.string)
+                structured_data.append(data)
+            except:
+                continue
+        metadata['structured_data'] = structured_data
+        
+        # Extract OpenGraph metadata
+        metadata['og'] = {}
+        for meta in soup.find_all('meta', property=re.compile(r'^og:')):
+            metadata['og'][meta['property'][3:]] = meta['content']
+        
+        # Extract Twitter Card metadata
+        metadata['twitter'] = {}
+        for meta in soup.find_all('meta', attrs={'name': re.compile(r'^twitter:')}):
+            metadata['twitter'][meta['name'][8:]] = meta['content']
+        
+        # Extract any custom metadata
+        metadata['custom'] = {}
+        for meta in soup.find_all('meta'):
+            if 'name' in meta.attrs and meta['name'] not in ['description', 'viewport']:
+                metadata['custom'][meta['name']] = meta['content']
+        
+        return metadata
 
     def _save_checkpoint(self, current_url: str) -> None:
         """Save current scraping progress"""
@@ -195,159 +501,6 @@ class ProductScraper:
             )
         
         return self.raw_products
-
-    def _is_product_page(self, url: str) -> bool:
-        """Check if URL is a product page"""
-        try:
-            response = requests.get(url)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Get platform-specific context
-            platform_context = self.adapter.get_platform_context(soup)
-            
-            return self.page_analyzer.is_product_page(
-                url,
-                soup.get_text(),
-                platform_context
-            )
-            
-        except Exception as e:
-            self.error_handler.handle_url_error(url, e)
-            return False
-
-    def _extract_links(self, url: str) -> Dict[str, List[str]]:
-        """Extract and classify links using LLM analysis"""
-        try:
-            response = requests.get(url)
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Get all links
-            all_links = {
-                urljoin(self.brand_url, a['href'])
-                for a in soup.find_all('a', href=True)
-                if urljoin(self.brand_url, a['href']).startswith(self.brand_url)
-            }
-            # Prepare context
-            context = {
-                'url': url,
-                'title': soup.title.text if soup.title else '',
-                'platform': self.platform,
-                'platform_context': self.adapter.get_platform_context(soup)
-            }
-            
-            # Use URL analyzer
-            classification = self.url_analyzer.analyze_urls(list(all_links), context)
-            
-            return {
-                'product_pages': [url for url in classification['product_pages'] 
-                                if url not in self.visited_urls],
-                'pagination_links': [url for url in classification['pagination_links'] 
-                                   if url not in self.visited_urls],
-                'category_pages': classification['category_pages']
-            }
-            
-        except Exception as e:
-            self.error_handler.handle_url_error(url, e)
-            return {'product_pages': [], 'pagination_links': [], 'category_pages': []}
-    
-    def _scrape_page(self, url: str) -> Optional[ScrapedProduct]:
-        """Scrape single page and return raw data"""
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, 'html.parser')
-
-        # Get platform-specific selectors
-        selectors = self.adapter.get_product_selectors()
-        
-        # First try to get images from product-specific containers
-        product_images = []
-        
-        # Try common product gallery containers first
-        gallery_containers = soup.find_all(class_=lambda x: x and any(term in str(x).lower() 
-            for term in ['product-gallery', 'product-images', 'product-photos', 'gallery-container',
-                        'main-image', 'product-media', 'product-thumbnails', 'product-slider']))
-        
-        for container in gallery_containers:
-            images = container.find_all('img')
-            for img in images:
-                if 'src' in img.attrs:
-                    product_images.append(self._normalize_url(img['src']))
-                elif 'data-src' in img.attrs:
-                    product_images.append(self._normalize_url(img['data-src']))
-        
-        # If no images found in galleries, try product-specific image attributes
-        if not product_images:
-            images = soup.find_all('img', attrs={
-                'class': lambda x: x and any(term in str(x).lower() 
-                    for term in ['product', 'gallery', 'main-image', 'featured']),
-                'id': lambda x: x and any(term in str(x).lower() 
-                    for term in ['product', 'gallery', 'main-image', 'featured'])
-            })
-            
-            for img in images:
-                if 'src' in img.attrs:
-                    product_images.append(self._normalize_url(img['src']))
-                elif 'data-src' in img.attrs:
-                    product_images.append(self._normalize_url(img['data-src']))
-        
-        # Filter out common non-product images
-        filtered_images = []
-        excluded_patterns = [
-            'logo', 'icon', 'banner', 'payment', 'social', 'related', 'recommended',
-            'cart', 'shipping', 'guarantee', 'review', 'rating', 'thumbnail-mini',
-            'placeholder', 'advertisement', 'promotion', 'widget', 'footer', 'header'
-        ]
-        
-        for img_url in product_images:
-            if not any(pattern in img_url.lower() for pattern in excluded_patterns):
-                filtered_images.append(img_url)
-        
-        # Remove duplicate URLs while preserving order
-        seen = set()
-        unique_images = []
-        for img in filtered_images:
-            if img not in seen:
-                seen.add(img)
-                unique_images.append(img)
-        
-        text = soup.get_text(separator='\n', strip=True)
-
-        # Basic metadata extraction
-        title = soup.find('title').text if soup.find('title') else ''
-        description = soup.find('meta', {'name': 'description'})
-        description = description['content'] if description else ''
-
-        # Add logging
-        st.write(f"Scraped data for {url}:")
-        st.write(f"Title: {title}")
-        st.write(f"Description: {description}")
-        st.write(f"Total images found: {len(product_images)}")
-        st.write(f"After filtering: {len(filtered_images)}")
-        st.write(f"Unique product images: {len(unique_images)}")
-        st.write(f"First 15 unique product images: {unique_images[:15]}")
-        st.write(f"Text: {text[:100]}...")  # Print first 100 characters of text
-
-        return ScrapedProduct(
-            url=url,
-            title=title,
-            description=description,
-            all_images=unique_images[:15],  # Take first 15 unique product images
-            page_text=text,
-            metadata={
-                'headers': [h.text for h in soup.find_all(['h1', 'h2', 'h3'])],
-                'structured_data': self._extract_structured_data(soup)
-            }
-        )
-        
-    def _extract_structured_data(self, soup) -> Dict:
-        """Extract any structured data from the page"""
-        structured_data = {}
-        for script in soup.find_all('script', {'type': 'application/ld+json'}):
-            try:
-                data = json.loads(script.string)
-                structured_data.update(data)
-            except:
-                continue
-        return structured_data
 
     def _normalize_url(self, url: str) -> str:
         """Ensure URL has proper protocol"""
