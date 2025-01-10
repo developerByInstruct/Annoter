@@ -1,0 +1,450 @@
+Processing: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/6/
+Products Scraped
+
+0/20
++0 new
+Links Visited
+
+12
+6 remaining
+HTML Structure Analysis:
+
+Title: Rugs - Suave Home UK
+
+Found main product grid
+
+Found 27 product items
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-749402"
+6:"status-publish"
+7:"first"
+8:"instock"
+9:"product_cat-decor"
+10:"product_cat-home-garden"
+11:"product_cat-rugs"
+12:"has-post-thumbnail"
+13:"shipping-taxable"
+14:"purchasable"
+15:"product-type-simple"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"box"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"box-text"
+1:"box-text-products"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-586431"
+6:"status-publish"
+7:"instock"
+8:"product_cat-decor"
+9:"product_cat-home-garden"
+10:"product_cat-rugs"
+11:"has-post-thumbnail"
+12:"shipping-taxable"
+13:"purchasable"
+14:"product-type-simple"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"box"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"box-text"
+1:"box-text-products"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-503798"
+6:"status-publish"
+7:"instock"
+8:"product_cat-decor"
+9:"product_cat-home-garden"
+10:"product_cat-rugs"
+11:"has-post-thumbnail"
+12:"shipping-taxable"
+13:"purchasable"
+14:"product-type-simple"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"box"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"box-text"
+1:"box-text-products"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-481491"
+6:"status-publish"
+7:"last"
+8:"instock"
+9:"product_cat-decor"
+10:"product_cat-home-garden"
+11:"product_cat-rugs"
+12:"has-post-thumbnail"
+13:"shipping-taxable"
+14:"purchasable"
+15:"product-type-simple"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"box"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"box-text"
+1:"box-text-products"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-449553"
+6:"status-publish"
+7:"first"
+8:"instock"
+9:"product_cat-decor"
+10:"product_cat-home-garden"
+11:"product_cat-rugs"
+12:"has-post-thumbnail"
+13:"shipping-taxable"
+14:"purchasable"
+15:"product-type-simple"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"box"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"box-text"
+1:"box-text-products"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-767167"
+6:"status-publish"
+7:"instock"
+8:"product_cat-decor"
+9:"product_cat-home-garden"
+10:"product_cat-rugs"
+11:"has-post-thumbnail"
+12:"shipping-taxable"
+13:"purchasable"
+14:"product-type-simple"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"box"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"box-text"
+1:"box-text-products"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-767166"
+6:"status-publish"
+7:"instock"
+8:"product_cat-decor"
+9:"product_cat-home-garden"
+10:"product_cat-rugs"
+11:"has-post-thumbnail"
+12:"shipping-taxable"
+13:"purchasable"
+14:"product-type-simple"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"box"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"box-text"
+1:"box-text-products"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-767165"
+6:"status-publish"
+7:"last"
+8:"instock"
+9:"product_cat-decor"
+10:"product_cat-home-garden"
+11:"product_cat-rugs"
+12:"has-post-thumbnail"
+13:"shipping-taxable"
+14:"purchasable"
+15:"product-type-simple"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"box"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"box-text"
+1:"box-text-products"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-767164"
+6:"status-publish"
+7:"first"
+8:"instock"
+9:"product_cat-decor"
+10:"product_cat-home-garden"
+11:"product_cat-rugs"
+12:"has-post-thumbnail"
+13:"shipping-taxable"
+14:"purchasable"
+15:"product-type-simple"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"box"
+]
+Found WooCommerce product link
+
+Processing product item:
+
+Classes:
+
+[
+0:"box-text"
+1:"box-text-products"
+]
+Found WooCommerce product link
+
+No product grid found or no links extracted, trying alternative methods...
+
+Found pagination nav
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/2/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/3/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/4/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/98/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/99/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/100/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/2/
+
+Found 0 potential product links
+
+Sample product links:
+
+[]
+Found 6 pagination links
+
+Sample pagination links:
+
+[
+0:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/2/"
+1:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/98/"
+2:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/3/"
+3:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/4/"
+4:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/99/"
+]
+Starting page analysis...
+
+Attempting analysis with Gemini...
+
+Gemini API response received
+
+Gemini response: {'is_product_page': False, 'confidence': 0.8}
