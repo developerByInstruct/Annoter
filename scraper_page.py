@@ -179,13 +179,9 @@ class ProductScraper:
                             href = link['href']
                             st.write(f"Found href: {href}")
                             full_url = urljoin(self.brand_url, href)
-                            st.write(f"Full URL: {full_url}")
-                            if full_url.startswith(self.brand_url):
-                                all_links.add(full_url)
-                                product_count += 1
-                                st.write(f"✓ Added product {product_count}: {full_url}")
-                            else:
-                                st.write("✗ URL doesn't start with brand URL")
+                            all_links.add(full_url)
+                            product_count += 1
+                            st.write(f"✓ Added product {product_count}: {full_url}")
                         else:
                             st.write("✗ No href attribute found")
                     else:
