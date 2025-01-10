@@ -149,9 +149,9 @@ class ProductScraper:
                 
             if product_grid:
                 st.write("Found main product grid")
-                # Look for individual product items
+                # Look for individual product items - only get top-level products
                 product_items = product_grid.find_all(['li', 'div'], class_=lambda x: x and 
-                    any(term in str(x).lower() for term in ['product-small', 'product-item', 'product type-product']), recursive=True)
+                    'product-small col' in ' '.join(x if isinstance(x, list) else [x]), recursive=False)
                 
                 st.write(f"Found {len(product_items)} product items")
                 
@@ -163,48 +163,21 @@ class ProductScraper:
                     st.write("Item HTML structure:")
                     st.write(str(item)[:500] + "..." if len(str(item)) > 500 else str(item))
                     
-                    # Find product link - try multiple approaches
+                    # Find the first product link in this item
                     product_link = None
+                    link_elem = item.find('a', href=True)
                     
-                    # 1. Try finding link in product title
-                    title_link = item.find('a', class_=lambda x: x and any(term in str(x).lower() for term in [
-                        'product-title', 'product-name', 'product-link'
-                    ]))
-                    if title_link and 'href' in title_link.attrs:
-                        product_link = title_link['href']
-                        st.write(f"Found link in title: {product_link}")
-                    
-                    # 2. Try finding link in product image
-                    if not product_link:
-                        img_link = item.find('a', class_=lambda x: x and any(term in str(x).lower() for term in [
-                            'product-image', 'product-photo', 'product-img'
-                        ]))
-                        if img_link and 'href' in img_link.attrs:
-                            product_link = img_link['href']
-                            st.write(f"Found link in image: {product_link}")
-                    
-                    # 3. Try finding any link that contains product-related terms
-                    if not product_link:
-                        product_links = item.find_all('a', href=True)
-                        for link in product_links:
-                            href = link.get('href', '')
-                            if any(term in href.lower() for term in ['/product/', '/products/', '/item/', '/p/']):
-                                product_link = href
-                                st.write(f"Found link with product term: {product_link}")
-                                break
-                    
-                    # 4. If still no link found, try getting the first link in the item
-                    if not product_link:
-                        first_link = item.find('a', href=True)
-                        if first_link:
-                            product_link = first_link['href']
-                            st.write(f"Found first available link: {product_link}")
+                    if link_elem and 'href' in link_elem.attrs:
+                        href = link_elem['href']
+                        if '/product/' in href:
+                            product_link = href
+                            st.write(f"Found product link: {href}")
                     
                     if product_link:
                         full_url = urljoin(self.brand_url, product_link)
                         if full_url.startswith(self.brand_url):
                             all_links.add(full_url)
-                            st.write(f"Added product URL: {full_url}")
+                            st.write(f"Added unique product link: {full_url}")
                 
                 # Look for pagination links
                 pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
