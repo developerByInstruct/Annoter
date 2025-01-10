@@ -133,11 +133,41 @@ class ProductScraper:
             # Get all links including JavaScript-rendered ones
             all_links = set()
             
-            # Standard href links
-            for a in soup.find_all('a', href=True):
-                link = urljoin(self.brand_url, a['href'])
-                if link.startswith(self.brand_url):
-                    all_links.add(link)
+            # Look for product grid/list containers first
+            product_containers = soup.find_all(class_=lambda x: x and any(term in str(x).lower() 
+                for term in ['products', 'product-grid', 'product-list', 'products-grid', 
+                           'products-list', 'product-container', 'product-wrapper',
+                           'product-item', 'product-card', 'product-box']))
+            
+            # Extract links from product containers first
+            for container in product_containers:
+                # Look for links in product containers
+                for a in container.find_all('a', href=True):
+                    link = urljoin(self.brand_url, a['href'])
+                    if link.startswith(self.brand_url):
+                        all_links.add(link)
+                
+                # Look for product data in data attributes
+                product_elements = container.find_all(attrs=lambda x: any(
+                    k.startswith('data-product') for k in x.keys()
+                ))
+                for elem in product_elements:
+                    for attr, value in elem.attrs.items():
+                        if isinstance(value, str) and (value.startswith('http') or value.startswith('/')):
+                            link = urljoin(self.brand_url, value)
+                            if link.startswith(self.brand_url):
+                                all_links.add(link)
+            
+            # If no product containers found, try standard href links
+            if not all_links:
+                # Standard href links
+                for a in soup.find_all('a', href=True):
+                    href = a['href']
+                    # Look for common product URL patterns
+                    if any(pattern in href.lower() for pattern in ['/product/', '/item/', '/p/', 'products/']):
+                        link = urljoin(self.brand_url, href)
+                        if link.startswith(self.brand_url):
+                            all_links.add(link)
             
             # Look for links in onclick attributes
             onclick_elements = soup.find_all(attrs={'onclick': True})
@@ -171,6 +201,17 @@ class ProductScraper:
                 except:
                     continue
             
+            # Look for product links in any embedded JavaScript
+            scripts = soup.find_all('script')
+            for script in scripts:
+                if script.string:
+                    # Look for product URLs in JavaScript variables
+                    urls = re.findall(r'["\'](/[^"\']*?(?:product|item)[^"\']*?)["\']', script.string)
+                    for url in urls:
+                        link = urljoin(self.brand_url, url)
+                        if link.startswith(self.brand_url):
+                            all_links.add(link)
+            
             # Get platform-specific context
             platform_context = self.adapter.get_platform_context(soup)
             
@@ -185,7 +226,15 @@ class ProductScraper:
                 'page_type_hints': self._get_page_type_hints(soup)
             }
             
+            # Add debug logging
+            st.write(f"Found {len(all_links)} potential links")
+            st.write("Sample links:", list(all_links)[:5])
+            
             classification = self.url_analyzer.analyze_urls(list(all_links), context)
+            
+            # Add more debug logging
+            st.write(f"Classified as product pages: {len(classification['product_pages'])}")
+            st.write("Sample product pages:", classification['product_pages'][:5])
             
             return {
                 'product_pages': [url for url in classification['product_pages'] 
