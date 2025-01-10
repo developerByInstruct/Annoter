@@ -177,8 +177,8 @@ class ProductScraper:
                         full_url = urljoin(self.brand_url, href)
                         all_links.add(full_url)
                         product_count += 1
-                        else:
-                            filtered_count += 1
+                    else:
+                        filtered_count += 1
                 
                 # Look for pagination links
                 pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
