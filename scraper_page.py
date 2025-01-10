@@ -138,7 +138,7 @@ class ProductScraper:
             all_links = set()
             
             # First try to find the main product grid
-            product_grid = soup.find('ul', class_='products') or soup.find('div', class_='products')
+            product_grid = soup.find(['ul', 'div'], class_=lambda x: x and ('products' in x or 'product-grid' in x))
             
             if product_grid:
                 st.write("Found main product grid")
@@ -155,67 +155,87 @@ class ProductScraper:
                     # Try multiple ways to find the product link
                     product_link = None
                     
-                    # Method 1: WooCommerce specific link
-                    product_link = item.find('a', class_='woocommerce-LoopProduct-link')
-                    if product_link:
-                        st.write("Found WooCommerce product link")
-                        href = product_link.get('href')
-                        if href:
-                            link = urljoin(self.brand_url, href)
-                            if link.startswith(self.brand_url) and '#' not in link:
-                                all_links.add(link)
-                                st.write(f"Added WooCommerce product link: {link}")
-                                continue  # Skip other methods if we found a WooCommerce link
-                    
-                    # Method 2: Link containing product title
+                    # Method 1: Direct link in product item
                     if not product_link:
-                        title_elem = item.find(class_=lambda x: x and 'product-title' in x)
+                        direct_link = item.find('a', href=True)
+                        if direct_link:
+                            href = direct_link.get('href')
+                            if href and '/product/' in href:
+                                link = urljoin(self.brand_url, href)
+                                if link.startswith(self.brand_url) and '#' not in link:
+                                    all_links.add(link)
+                                    st.write(f"Added direct product link: {link}")
+                                    continue
+                    
+                    # Method 2: WooCommerce specific link
+                    if not product_link:
+                        woo_links = item.find_all('a', class_=lambda x: x and any(term in str(x) for term in 
+                            ['woocommerce-loop-product__link', 'woocommerce-LoopProduct-link']))
+                        for link in woo_links:
+                            href = link.get('href')
+                            if href:
+                                link = urljoin(self.brand_url, href)
+                                if link.startswith(self.brand_url) and '#' not in link:
+                                    all_links.add(link)
+                                    st.write(f"Added WooCommerce product link: {link}")
+                                    continue
+                    
+                    # Method 3: Link in product title
+                    if not product_link:
+                        title_elem = item.find(['h2', 'h3', 'h4'], class_=lambda x: x and 
+                            any(term in str(x) for term in ['product-title', 'title', 'name']))
                         if title_elem:
-                            product_link = title_elem.find('a')
-                            if product_link and 'href' in product_link.attrs:
-                                link = urljoin(self.brand_url, product_link['href'])
-                                if link.startswith(self.brand_url) and '#' not in link:
-                                    all_links.add(link)
-                                    st.write(f"Added product title link: {link}")
-                                    continue
+                            title_link = title_elem.find('a', href=True)
+                            if title_link:
+                                href = title_link.get('href')
+                                if href:
+                                    link = urljoin(self.brand_url, href)
+                                    if link.startswith(self.brand_url) and '#' not in link:
+                                        all_links.add(link)
+                                        st.write(f"Added product title link: {link}")
+                                        continue
                     
-                    # Method 3: First link in product box
+                    # Method 4: Any link in product box
                     if not product_link:
-                        box = item.find(class_=lambda x: x and 'box-text' in str(x))
+                        box = item.find(class_=lambda x: x and any(term in str(x) for term in 
+                            ['box-text', 'product-box', 'product-content']))
                         if box:
-                            product_link = box.find('a')
-                            if product_link and 'href' in product_link.attrs:
-                                link = urljoin(self.brand_url, product_link['href'])
-                                if link.startswith(self.brand_url) and '#' not in link:
-                                    all_links.add(link)
-                                    st.write(f"Added box text link: {link}")
-                                    continue
+                            box_links = box.find_all('a', href=True)
+                            for link in box_links:
+                                href = link.get('href')
+                                if href and '/product/' in href:
+                                    link = urljoin(self.brand_url, href)
+                                    if link.startswith(self.brand_url) and '#' not in link:
+                                        all_links.add(link)
+                                        st.write(f"Added box link: {link}")
+                                        continue
                     
-                    # Method 4: Any link in the item that looks like a product
-                    if not product_link:
-                        all_item_links = item.find_all('a', href=True)
-                        for link in all_item_links:
-                            href = link.get('href', '')
-                            if '/product/' in href and '#' not in href:
-                                link_url = urljoin(self.brand_url, href)
-                                if link_url.startswith(self.brand_url):
-                                    all_links.add(link_url)
-                                    st.write(f"Added product link by URL pattern: {link_url}")
-                                    break
+                    # Method 5: Any link with product URL pattern
+                    all_item_links = item.find_all('a', href=True)
+                    for link in all_item_links:
+                        href = link.get('href', '')
+                        if '/product/' in href and '#' not in href:
+                            link_url = urljoin(self.brand_url, href)
+                            if link_url.startswith(self.brand_url):
+                                all_links.add(link_url)
+                                st.write(f"Added product link by URL pattern: {link_url}")
             
             if not all_links:
                 st.write("No product grid found or no links extracted, trying alternative methods...")
-                # Look for product links with specific patterns
-                product_links = soup.find_all('a', href=re.compile(r'/product/[^#]+'))
-                for a in product_links:
-                    link = urljoin(self.brand_url, a['href'])
-                    if link.startswith(self.brand_url) and '#' not in link:
-                        all_links.add(link)
-                        st.write(f"Added direct product link: {link}")
+                # Look for any links that match product patterns
+                all_links_elements = soup.find_all('a', href=True)
+                for link in all_links_elements:
+                    href = link.get('href', '')
+                    if '/product/' in href and '#' not in href:
+                        link_url = urljoin(self.brand_url, href)
+                        if link_url.startswith(self.brand_url):
+                            all_links.add(link_url)
+                            st.write(f"Added product link from alternative method: {link_url}")
             
             # Look for pagination links
             pagination_links = set()
-            pager = soup.find('nav', class_='woocommerce-pagination')
+            pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
+                any(term in str(x) for term in ['pagination', 'pager', 'nav-links']))
             if pager:
                 st.write("Found pagination nav")
                 for a in pager.find_all('a', href=True):
@@ -230,7 +250,6 @@ class ProductScraper:
             st.write(f"Found {len(pagination_links)} pagination links")
             st.write("Sample pagination links:", list(pagination_links)[:5])
             
-            # For this site, we'll consider all links in product containers as product pages
             return {
                 'product_pages': list(all_links),
                 'pagination_links': list(pagination_links),
