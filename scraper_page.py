@@ -131,13 +131,12 @@ class ProductScraper:
             soup = BeautifulSoup(response.text, 'html.parser')
             
             # Debug: Print minimal page info
-            st.write(f"\n{'='*50}")
-            st.write(f"Processing page: {url}")
-            st.write(f"{'='*50}\n")
+            st.write(f"\nScanning: {url}")
             
             # Get all links including JavaScript-rendered ones
             all_links = set()
             pagination_links = set()
+            seen_product_patterns = set()  # Track base product patterns
             
             # First try to find the main product grid
             product_grid = soup.find(['ul', 'div'], class_=lambda x: x and ('products' in x or 'product-grid' in x))
@@ -153,19 +152,11 @@ class ProductScraper:
                 product_items = product_grid.find_all(['li', 'div'], class_=lambda x: x and 
                     'product-small col' in ' '.join(x if isinstance(x, list) else [x]), recursive=False)
                 
-                st.write(f"Found {len(product_items)} products on page")
-                
                 # Extract product links
                 product_count = 0
-                st.write("\nExtracting product links:")
-                st.write("-" * 30)
+                filtered_count = 0
                 
                 for item_index, item in enumerate(product_items, 1):
-                    st.write(f"\nProduct item {item_index}:")
-                    # Debug: Print the first few lines of the item HTML
-                    st.write("Item HTML:")
-                    st.write(str(item)[:200])
-                    
                     # First try to find link in product title
                     link = item.find('div', class_='box-text').find('a', href=True) if item.find('div', class_='box-text') else None
                     
@@ -173,24 +164,23 @@ class ProductScraper:
                     if not link:
                         link = item.find('div', class_='box-image').find('a', href=True) if item.find('div', class_='box-image') else None
                     
-                    if link:
-                        st.write(f"Found link element: {link}")
-                        if 'href' in link.attrs:
-                            href = link['href']
-                            st.write(f"Found href: {href}")
-                            full_url = urljoin(self.brand_url, href)
-                            all_links.add(full_url)
-                            product_count += 1
-                            st.write(f"✓ Added product {product_count}: {full_url}")
+                    if link and 'href' in link.attrs:
+                        href = link['href']
+                        title = link.get_text().strip()
+                        
+                        # Extract base product pattern by removing dimensions
+                        base_pattern = self._get_base_product_pattern(title)
+                        
+                        # If we haven't seen this base pattern before, add the product
+                        if base_pattern not in seen_product_patterns:
+                            seen_product_patterns.add(base_pattern)
+                        full_url = urljoin(self.brand_url, href)
+                        all_links.add(full_url)
+                        product_count += 1
                         else:
-                            st.write("✗ No href attribute found")
-                    else:
-                        st.write("✗ No link element found")
+                            filtered_count += 1
                 
                 # Look for pagination links
-                st.write("\nExtracting pagination links:")
-                st.write("-" * 30)
-                
                 pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
                     any(term in str(x).lower() for term in ['pagination', 'pager', 'nav-links', 'page-numbers']))
                 if pager:
@@ -198,19 +188,10 @@ class ProductScraper:
                         link = urljoin(self.brand_url, a['href'])
                         if link.startswith(self.brand_url) and ('page/' in link or 'p=' in link):
                             pagination_links.add(link)
-                            st.write(f"Found pagination link: {link}")
                 
                 # Summary logging
-                st.write("\nSummary:")
-                st.write("-" * 30)
-                st.write(f"Extracted {len(all_links)} unique product links ({product_count} found on this page)")
+                st.write(f"Found {product_count} unique products (filtered {filtered_count} similar items)")
                 st.write(f"Found {len(pagination_links)} pagination links")
-                
-                # Debug: Show what's being returned
-                st.write("\nReturning:")
-                st.write("-" * 30)
-                st.write("Product pages:", list(all_links))
-                st.write("Pagination links:", list(pagination_links))
                 
                 # Return the results
                 return {
@@ -219,12 +200,29 @@ class ProductScraper:
                     'category_pages': []
                 }
             else:
-                st.write("No product grid found on this page")
+                st.write("No products found on this page")
                 return {'product_pages': [], 'pagination_links': [], 'category_pages': []}
             
         except Exception as e:
             st.error(f"Error extracting links: {str(e)}")
             return {'product_pages': [], 'pagination_links': [], 'category_pages': []}
+
+    def _get_base_product_pattern(self, title: str) -> str:
+        """Extract base product pattern by removing dimensions and measurements"""
+        import re
+        
+        # Remove common dimension patterns
+        # Examples: 120x120 cm, 50x100cm, 70x400 cm, etc.
+        title = re.sub(r'\d+(?:\.\d+)?x\d+(?:\.\d+)?\s*(?:cm|m|mm|inch|"|\'|feet|ft)', '', title, flags=re.IGNORECASE)
+        
+        # Remove other measurements
+        # Examples: 120 cm, 50cm, 70mm, etc.
+        title = re.sub(r'\d+(?:\.\d+)?\s*(?:cm|m|mm|inch|"|\'|feet|ft)', '', title, flags=re.IGNORECASE)
+        
+        # Remove multiple spaces and trim
+        title = ' '.join(title.split())
+        
+        return title.strip()
 
     def _get_page_type_hints(self, soup: BeautifulSoup) -> Dict[str, bool]:
         """Extract hints about page type from HTML structure"""
