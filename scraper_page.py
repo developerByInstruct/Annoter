@@ -172,7 +172,7 @@ class ProductScraper:
                                     if link.startswith(self.brand_url):
                                         all_links.add(link)
                                         st.write(f"Added image box link: {link}")
-                                        continue
+                                        product_link = link
                     
                     # Method 2: Find link in product title
                     if not product_link:
@@ -187,7 +187,7 @@ class ProductScraper:
                                     if link.startswith(self.brand_url):
                                         all_links.add(link)
                                         st.write(f"Added title link: {link}")
-                                        continue
+                                        product_link = link
                     
                     # Method 3: Find any link in box-text
                     if not product_link:
@@ -202,20 +202,24 @@ class ProductScraper:
                                     if link.startswith(self.brand_url):
                                         all_links.add(link)
                                         st.write(f"Added box text link: {link}")
-                                        continue
+                                        product_link = link
+                                        break
                     
-                    # Method 4: Direct links in product item
-                    all_links_in_item = item.find_all('a', href=True)
-                    if all_links_in_item:
-                        st.write(f"Found {len(all_links_in_item)} direct links in item")
-                        for link in all_links_in_item:
-                            href = link.get('href')
-                            if href:
-                                st.write(f"Found href: {href}")
-                                link_url = urljoin(self.brand_url, href)
-                                if link_url.startswith(self.brand_url):
-                                    all_links.add(link_url)
-                                    st.write(f"Added direct link: {link_url}")
+                    # Method 4: Direct links in product item (as fallback)
+                    if not product_link:
+                        all_links_in_item = item.find_all('a', href=True)
+                        if all_links_in_item:
+                            st.write(f"Found {len(all_links_in_item)} direct links in item")
+                            for link in all_links_in_item:
+                                href = link.get('href')
+                                if href:
+                                    st.write(f"Found href: {href}")
+                                    link_url = urljoin(self.brand_url, href)
+                                    if link_url.startswith(self.brand_url):
+                                        all_links.add(link_url)
+                                        st.write(f"Added direct link: {link_url}")
+                                        product_link = link_url
+                                        break
             
             if not all_links:
                 st.write("No product grid found or no links extracted, trying alternative methods...")
