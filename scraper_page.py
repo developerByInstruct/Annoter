@@ -168,14 +168,23 @@ class ProductScraper:
                         href = link.get('href', '')
                         st.write(f"  Checking link: {href}")
                         
-                        if '/product/' in href:
-                            full_url = urljoin(self.brand_url, href)
-                            if full_url.startswith(self.brand_url):
-                                all_links.add(full_url)
-                                product_count += 1
-                                st.write(f"  ✓ Added product {product_count}: {full_url}")
-                                found_product_link = True
-                                break  # Only get the first product link from each item
+                        # First normalize the URL
+                        full_url = urljoin(self.brand_url, href)
+                        
+                        # Parse the URL to check the path
+                        try:
+                            from urllib.parse import urlparse
+                            parsed_url = urlparse(full_url)
+                            if '/product/' in parsed_url.path:  # Check only the path part
+                                if full_url.startswith(self.brand_url):
+                                    all_links.add(full_url)
+                                    product_count += 1
+                                    st.write(f"  ✓ Added product {product_count}: {full_url}")
+                                    found_product_link = True
+                                    break  # Only get the first product link from each item
+                        except Exception as e:
+                            st.write(f"  Error parsing URL: {e}")
+                            continue
                     
                     if not found_product_link:
                         st.write("  ✗ No valid product link found in this item")
