@@ -149,16 +149,54 @@ class ProductScraper:
                 st.write(f"Found {len(product_items)} product items")
                 
                 for item in product_items:
-                    # Try to find the product link - usually the first link in the item
-                    product_link = item.find('a', class_='woocommerce-LoopProduct-link') or item.find('a')
+                    st.write("Processing product item:")
+                    st.write("Classes:", item.get('class', []))
+                    
+                    # Try multiple ways to find the product link
+                    product_link = None
+                    
+                    # Method 1: WooCommerce specific link
+                    product_link = item.find('a', class_='woocommerce-LoopProduct-link')
+                    if product_link:
+                        st.write("Found WooCommerce product link")
+                    
+                    # Method 2: Link containing product title
+                    if not product_link:
+                        title_elem = item.find(class_=lambda x: x and 'product-title' in x)
+                        if title_elem:
+                            product_link = title_elem.find('a')
+                            if product_link:
+                                st.write("Found product title link")
+                    
+                    # Method 3: First link in product box
+                    if not product_link:
+                        box = item.find(class_=lambda x: x and 'box-text' in str(x))
+                        if box:
+                            product_link = box.find('a')
+                            if product_link:
+                                st.write("Found box text link")
+                    
+                    # Method 4: Any link in the item that looks like a product
+                    if not product_link:
+                        all_item_links = item.find_all('a', href=True)
+                        for link in all_item_links:
+                            href = link.get('href', '')
+                            if '/product/' in href and '#' not in href:
+                                product_link = link
+                                st.write("Found product link by URL pattern")
+                                break
+                    
+                    # If we found a link, process it
                     if product_link and 'href' in product_link.attrs:
                         link = urljoin(self.brand_url, product_link['href'])
                         if link.startswith(self.brand_url) and '#' not in link:  # Exclude anchor links
                             all_links.add(link)
                             st.write(f"Added product link: {link}")
+                    else:
+                        st.write("No product link found in item")
             
             if not all_links:
-                st.write("No product grid found, trying alternative methods...")
+                st.write("No product grid found or no links extracted, trying alternative methods...")
                 # Look for product links with specific patterns
                 product_links = soup.find_all('a', href=re.compile(r'/product/[^#]+'))
                 for a in product_links:
@@ -171,9 +209,10 @@ class ProductScraper:
             pagination_links = set()
             pager = soup.find('nav', class_='woocommerce-pagination')
             if pager:
-                for a in pager.find_all('a', class_='page-numbers'):
+                st.write("Found pagination nav")
+                for a in pager.find_all('a', href=True):
                     link = urljoin(self.brand_url, a['href'])
-                    if link.startswith(self.brand_url):
+                    if link.startswith(self.brand_url) and 'page/' in link:
                         pagination_links.add(link)
                         st.write(f"Added pagination link: {link}")
             
