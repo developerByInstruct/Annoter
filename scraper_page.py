@@ -141,11 +141,17 @@ class ProductScraper:
             # First try to find the main product grid
             product_grid = soup.find(['ul', 'div'], class_=lambda x: x and ('products' in x or 'product-grid' in x))
             
+            if not product_grid:
+                # Try alternate selectors if main grid not found
+                product_grid = soup.find(['ul', 'div'], class_=lambda x: x and any(term in str(x).lower() for term in [
+                    'product-small', 'product-list', 'products-grid', 'products-list', 'product-container'
+                ]))
+                
             if product_grid:
                 st.write("Found main product grid")
-                # Look for individual product items - only get top-level products
+                # Look for individual product items
                 product_items = product_grid.find_all(['li', 'div'], class_=lambda x: x and 
-                    'product-small col' in ' '.join(x if isinstance(x, list) else [x]), recursive=False)
+                    any(term in str(x).lower() for term in ['product-small', 'product-item', 'product type-product']), recursive=True)
                 
                 st.write(f"Found {len(product_items)} product items")
                 
@@ -157,47 +163,75 @@ class ProductScraper:
                     st.write("Item HTML structure:")
                     st.write(str(item)[:500] + "..." if len(str(item)) > 500 else str(item))
                     
-                    # Find all product links in this item
-                    all_item_links = item.find_all('a', href=True)
-                    product_links = set()
+                    # Find product link - try multiple approaches
+                    product_link = None
                     
-                    for link in all_item_links:
-                        href = link.get('href', '')
-                        if href and '/product/' in href:
-                            link_url = urljoin(self.brand_url, href)
-                            if link_url.startswith(self.brand_url):
-                                product_links.add(link_url)
-                                st.write(f"Found product link: {link_url}")
+                    # 1. Try finding link in product title
+                    title_link = item.find('a', class_=lambda x: x and any(term in str(x).lower() for term in [
+                        'product-title', 'product-name', 'product-link'
+                    ]))
+                    if title_link and 'href' in title_link.attrs:
+                        product_link = title_link['href']
+                        st.write(f"Found link in title: {product_link}")
                     
-                    # Add the first product link found (they're all the same for a given product)
-                    if product_links:
-                        product_link = next(iter(product_links))
-                        all_links.add(product_link)
-                        st.write(f"Added unique product link: {product_link}")
-            
-            # Look for pagination links
-            pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
-                any(term in str(x) for term in ['pagination', 'pager', 'nav-links']))
-            if pager:
-                st.write("Found pagination nav")
-                for a in pager.find_all('a', href=True):
-                    link = urljoin(self.brand_url, a['href'])
-                    if link.startswith(self.brand_url) and 'page/' in link:
-                        pagination_links.add(link)
-                        st.write(f"Added pagination link: {link}")
-            
-            # Add debug logging
-            st.write(f"Found {len(all_links)} unique product links")
-            st.write("Product links:", list(all_links))
-            st.write(f"Found {len(pagination_links)} pagination links")
-            st.write("Pagination links:", list(pagination_links))
-            
-            # Return the results
-            return {
-                'product_pages': list(all_links),
-                'pagination_links': list(pagination_links),
-                'category_pages': []
-            }
+                    # 2. Try finding link in product image
+                    if not product_link:
+                        img_link = item.find('a', class_=lambda x: x and any(term in str(x).lower() for term in [
+                            'product-image', 'product-photo', 'product-img'
+                        ]))
+                        if img_link and 'href' in img_link.attrs:
+                            product_link = img_link['href']
+                            st.write(f"Found link in image: {product_link}")
+                    
+                    # 3. Try finding any link that contains product-related terms
+                    if not product_link:
+                        product_links = item.find_all('a', href=True)
+                        for link in product_links:
+                            href = link.get('href', '')
+                            if any(term in href.lower() for term in ['/product/', '/products/', '/item/', '/p/']):
+                                product_link = href
+                                st.write(f"Found link with product term: {product_link}")
+                                break
+                    
+                    # 4. If still no link found, try getting the first link in the item
+                    if not product_link:
+                        first_link = item.find('a', href=True)
+                        if first_link:
+                            product_link = first_link['href']
+                            st.write(f"Found first available link: {product_link}")
+                    
+                    if product_link:
+                        full_url = urljoin(self.brand_url, product_link)
+                        if full_url.startswith(self.brand_url):
+                            all_links.add(full_url)
+                            st.write(f"Added product URL: {full_url}")
+                
+                # Look for pagination links
+                pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
+                    any(term in str(x).lower() for term in ['pagination', 'pager', 'nav-links', 'page-numbers']))
+                if pager:
+                    st.write("Found pagination nav")
+                    for a in pager.find_all('a', href=True):
+                        link = urljoin(self.brand_url, a['href'])
+                        if link.startswith(self.brand_url) and ('page/' in link or 'p=' in link):
+                            pagination_links.add(link)
+                            st.write(f"Added pagination link: {link}")
+                
+                # Add debug logging
+                st.write(f"Found {len(all_links)} unique product links")
+                st.write("Product links:", list(all_links))
+                st.write(f"Found {len(pagination_links)} pagination links")
+                st.write("Pagination links:", list(pagination_links))
+                
+                # Return the results
+                return {
+                    'product_pages': list(all_links),
+                    'pagination_links': list(pagination_links),
+                    'category_pages': []
+                }
+            else:
+                st.warning("No product grid found on the page")
+                return {'product_pages': [], 'pagination_links': [], 'category_pages': []}
             
         except Exception as e:
             st.error(f"Error extracting links: {str(e)}")

@@ -1,22 +1,22 @@
 
 Collecting product pages...
 
-Processing: https://suavehome.co.uk/product-category/home-garden/decor/rugs/#tab_outdoor-accessories
+Processing: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/100/
 Products Scraped
 
-0/20
+0/10
 +0 new
 Links Visited
 
 6
-227 remaining
+8 remaining
 HTML Structure Analysis:
 
 Title: Rugs - Suave Home UK
 
 Found main product grid
 
-Found 27 product items
+Found 9 product items
 
 Processing product item:
 
@@ -43,58 +43,6 @@ Classes:
 Item HTML structure:
 
 <div class="product-small col has-hover product type-product post-749402 status-publish first instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Rug ZIZUR 120x120 cm Jute Look Indoor and Outdoor" href="https://suavehome.co.uk/product/r...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/rug-zizur-120x120-cm-jute-look-indoor-and-outdoor/
-
-Found href: https://suavehome.co.uk/product/rug-zizur-120x120-cm-jute-look-indoor-and-outdoor/
-
-Processing product item:
-
-Classes:
-
-[
-0:"product-small"
-1:"box"
-]
-Item HTML structure:
-
-<div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Rug ZIZUR 120x120 cm Jute Look Indoor and Outdoor" href="https://suavehome.co.uk/product/rug-zizur-120x120-cm-jute-look-indoor-and-outdoor/"> <img alt="" class="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" decoding="async" loading="lazy" src="https://vdxl.im/8721012877085_m_en_hd_1.jpg" width="1920"> </img></a> </div> <div class="image-tools is-small top right show-on-hover"> </div> <d...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/rug-zizur-120x120-cm-jute-look-indoor-and-outdoor/
-
-Found href: https://suavehome.co.uk/product/rug-zizur-120x120-cm-jute-look-indoor-and-outdoor/
-
-Processing product item:
-
-Classes:
-
-[
-0:"box-text"
-1:"box-text-products"
-]
-Item HTML structure:
-
-<div class="box-text box-text-products"> <div class="title-wrapper"><p class="name product-title woocommerce-loop-product__title"><a class="woocommerce-LoopProduct-link woocommerce-loop-product__link" href="https://suavehome.co.uk/product/rug-zizur-120x120-cm-jute-look-indoor-and-outdoor/">Rug ZIZUR 120×120 cm Jute Look Indoor and Outdoor</a></p></div><div class="price-wrapper"> <span class="price"><span class="woocommerce-Price-amount amount"><bdi><span class="woocommerce-Price-currencySymbol">...
-Found product title p tag
-
-Found 1 direct links in item
-
-Found href: https://suavehome.co.uk/product/rug-zizur-120x120-cm-jute-look-indoor-and-outdoor/
-
 Processing product item:
 
 Classes:
@@ -119,58 +67,6 @@ Classes:
 Item HTML structure:
 
 <div class="product-small col has-hover product type-product post-586431 status-publish instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Dirt Trapper Carpet Runner 100x300 cm Anthracite" href="https://suavehome.co.uk/product/dirt-tra...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/dirt-trapper-carpet-runner-100x300-cm-anthracite/
-
-Found href: https://suavehome.co.uk/product/dirt-trapper-carpet-runner-100x300-cm-anthracite/
-
-Processing product item:
-
-Classes:
-
-[
-0:"product-small"
-1:"box"
-]
-Item HTML structure:
-
-<div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Dirt Trapper Carpet Runner 100x300 cm Anthracite" href="https://suavehome.co.uk/product/dirt-trapper-carpet-runner-100x300-cm-anthracite/"> <img alt="" class="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" decoding="async" loading="lazy" src="https://vdxl.im/8720286333617_a_en_hd_1.jpg" width="1920"/> </a> </div> <div class="image-tools is-small top right show-on-hover"> </div> <div clas...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/dirt-trapper-carpet-runner-100x300-cm-anthracite/
-
-Found href: https://suavehome.co.uk/product/dirt-trapper-carpet-runner-100x300-cm-anthracite/
-
-Processing product item:
-
-Classes:
-
-[
-0:"box-text"
-1:"box-text-products"
-]
-Item HTML structure:
-
-<div class="box-text box-text-products"> <div class="title-wrapper"><p class="name product-title woocommerce-loop-product__title"><a class="woocommerce-LoopProduct-link woocommerce-loop-product__link" href="https://suavehome.co.uk/product/dirt-trapper-carpet-runner-100x300-cm-anthracite/">Dirt Trapper Carpet Runner 100×300 cm Anthracite</a></p></div><div class="price-wrapper"> <span class="price"><span class="woocommerce-Price-amount amount"><bdi><span class="woocommerce-Price-currencySymbol">£<...
-Found product title p tag
-
-Found 1 direct links in item
-
-Found href: https://suavehome.co.uk/product/dirt-trapper-carpet-runner-100x300-cm-anthracite/
-
 Processing product item:
 
 Classes:
@@ -195,58 +91,6 @@ Classes:
 Item HTML structure:
 
 <div class="product-small col has-hover product type-product post-503798 status-publish instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Area Rug Braided Jute 210 cm Round" href="https://suavehome.co.uk/product/area-rug-braided-jute-...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/area-rug-braided-jute-210-cm-round/
-
-Found href: https://suavehome.co.uk/product/area-rug-braided-jute-210-cm-round/
-
-Processing product item:
-
-Classes:
-
-[
-0:"product-small"
-1:"box"
-]
-Item HTML structure:
-
-<div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Area Rug Braided Jute 210 cm Round" href="https://suavehome.co.uk/product/area-rug-braided-jute-210-cm-round/"> <img alt="" class="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" decoding="async" loading="lazy" src="https://vdxl.im/8720286970638_a_en_hd_1.jpg" width="1920"/> </a> </div> <div class="image-tools is-small top right show-on-hover"> </div> <div class="image-tools is-small hide...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/area-rug-braided-jute-210-cm-round/
-
-Found href: https://suavehome.co.uk/product/area-rug-braided-jute-210-cm-round/
-
-Processing product item:
-
-Classes:
-
-[
-0:"box-text"
-1:"box-text-products"
-]
-Item HTML structure:
-
-<div class="box-text box-text-products"> <div class="title-wrapper"><p class="name product-title woocommerce-loop-product__title"><a class="woocommerce-LoopProduct-link woocommerce-loop-product__link" href="https://suavehome.co.uk/product/area-rug-braided-jute-210-cm-round/">Area Rug Braided Jute 210 cm Round</a></p></div><div class="price-wrapper"> <span class="price"><span class="woocommerce-Price-amount amount"><bdi><span class="woocommerce-Price-currencySymbol">£</span>153.99</bdi></span></s...
-Found product title p tag
-
-Found 1 direct links in item
-
-Found href: https://suavehome.co.uk/product/area-rug-braided-jute-210-cm-round/
-
 Processing product item:
 
 Classes:
@@ -272,58 +116,6 @@ Classes:
 Item HTML structure:
 
 <div class="product-small col has-hover product type-product post-481491 status-publish last instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Carpet Runner Dark Grey 50x100 cm" href="https://suavehome.co.uk/product/carpet-runner-dark...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/carpet-runner-dark-grey-50x100-cm/
-
-Found href: https://suavehome.co.uk/product/carpet-runner-dark-grey-50x100-cm/
-
-Processing product item:
-
-Classes:
-
-[
-0:"product-small"
-1:"box"
-]
-Item HTML structure:
-
-<div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Carpet Runner Dark Grey 50x100 cm" href="https://suavehome.co.uk/product/carpet-runner-dark-grey-50x100-cm/"> <img alt="" class="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" decoding="async" loading="lazy" src="https://vdxl.im/8720286330166_a_en_hd_1.jpg" width="1920"/> </a> </div> <div class="image-tools is-small top right show-on-hover"> </div> <div class="image-tools is-small hide-f...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/carpet-runner-dark-grey-50x100-cm/
-
-Found href: https://suavehome.co.uk/product/carpet-runner-dark-grey-50x100-cm/
-
-Processing product item:
-
-Classes:
-
-[
-0:"box-text"
-1:"box-text-products"
-]
-Item HTML structure:
-
-<div class="box-text box-text-products"> <div class="title-wrapper"><p class="name product-title woocommerce-loop-product__title"><a class="woocommerce-LoopProduct-link woocommerce-loop-product__link" href="https://suavehome.co.uk/product/carpet-runner-dark-grey-50x100-cm/">Carpet Runner Dark Grey 50×100 cm</a></p></div><div class="price-wrapper"> <span class="price"><span class="woocommerce-Price-amount amount"><bdi><span class="woocommerce-Price-currencySymbol">£</span>24.99</bdi></span></span...
-Found product title p tag
-
-Found 1 direct links in item
-
-Found href: https://suavehome.co.uk/product/carpet-runner-dark-grey-50x100-cm/
-
 Processing product item:
 
 Classes:
@@ -349,58 +141,141 @@ Classes:
 Item HTML structure:
 
 <div class="product-small col has-hover product type-product post-449553 status-publish first instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Handmade Rug Jute with Olive Green Border 120 cm" href="https://suavehome.co.uk/product/ha...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/handmade-rug-jute-with-olive-green-border-120-cm/
-
-Found href: https://suavehome.co.uk/product/handmade-rug-jute-with-olive-green-border-120-cm/
-
 Processing product item:
 
 Classes:
 
 [
 0:"product-small"
-1:"box"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-767167"
+6:"status-publish"
+7:"instock"
+8:"product_cat-decor"
+9:"product_cat-home-garden"
+10:"product_cat-rugs"
+11:"has-post-thumbnail"
+12:"shipping-taxable"
+13:"purchasable"
+14:"product-type-simple"
 ]
 Item HTML structure:
 
-<div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Handmade Rug Jute with Olive Green Border 120 cm" href="https://suavehome.co.uk/product/handmade-rug-jute-with-olive-green-border-120-cm/"> <img alt="" class="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" decoding="async" loading="lazy" src="https://vdxl.im/8718475733201_a_en_hd_1.jpg" width="1920"/> </a> </div> <div class="image-tools is-small top right show-on-hover"> </div> <div clas...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/handmade-rug-jute-with-olive-green-border-120-cm/
-
-Found href: https://suavehome.co.uk/product/handmade-rug-jute-with-olive-green-border-120-cm/
-
+<div class="product-small col has-hover product type-product post-767167 status-publish instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Rug Rectangular Brown70x400 cm Bamboo" href="https://suavehome.co.uk/product/rug-rectangular-bro...
 Processing product item:
 
 Classes:
 
 [
-0:"box-text"
-1:"box-text-products"
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-767166"
+6:"status-publish"
+7:"instock"
+8:"product_cat-decor"
+9:"product_cat-home-garden"
+10:"product_cat-rugs"
+11:"has-post-thumbnail"
+12:"shipping-taxable"
+13:"purchasable"
+14:"product-type-simple"
 ]
 Item HTML structure:
 
-<div class="box-text box-text-products"> <div class="title-wrapper"><p class="name product-title woocommerce-loop-product__title"><a class="woocommerce-LoopProduct-link woocommerce-loop-product__link" href="https://suavehome.co.uk/product/handmade-rug-jute-with-olive-green-border-120-cm/">Handmade Rug Jute with Olive Green Border 120 cm</a></p></div><div class="price-wrapper"> <span class="price"><span class="woocommerce-Price-amount amount"><bdi><span class="woocommerce-Price-currencySymbol">£<...
-Found product title p tag
-
-Found 1 direct links in item
-
-Found href: https://suavehome.co.uk/product/handmade-rug-jute-with-olive-green-border-120-cm/
-
+<div class="product-small col has-hover product type-product post-767166 status-publish instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Rug Rectangular Light Natural60x300 cm Bamboo" href="https://suavehome.co.uk/product/rug-rectang...
 Processing product item:
 
 Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-767165"
+6:"status-publish"
+7:"last"
+8:"instock"
+9:"product_cat-decor"
+10:"product_cat-home-garden"
+11:"product_cat-rugs"
+12:"has-post-thumbnail"
+13:"shipping-taxable"
+14:"purchasable"
+15:"product-type-simple"
+]
+Item HTML structure:
+
+<div class="product-small col has-hover product type-product post-767165 status-publish last instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Rug Rectangular Black 100x500 cm Bamboo" href="https://suavehome.co.uk/product/rug-rectangu...
+Processing product item:
+
+Classes:
+
+[
+0:"product-small"
+1:"col"
+2:"has-hover"
+3:"product"
+4:"type-product"
+5:"post-767164"
+6:"status-publish"
+7:"first"
+8:"instock"
+9:"product_cat-decor"
+10:"product_cat-home-garden"
+11:"product_cat-rugs"
+12:"has-post-thumbnail"
+13:"shipping-taxable"
+14:"purchasable"
+15:"product-type-simple"
+]
+Item HTML structure:
+
+<div class="product-small col has-hover product type-product post-767164 status-publish first instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Rug Rectangular Dark Brown 100x400 cm Bamboo" href="https://suavehome.co.uk/product/rug-re...
+Found pagination nav
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/2/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/3/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/4/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/98/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/99/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/100/
+
+Added pagination link: https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/2/
+
+Found 0 unique product links
+
+Product links:
+
+[]
+Found 6 pagination links
+
+Pagination links:
+
+[
+0:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/98/"
+1:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/2/"
+2:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/99/"
+3:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/3/"
+4:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/4/"
+5:"https://suavehome.co.uk/product-category/home-garden/decor/rugs/page/100/"
+]
+Starting page analysis...
+
+Attempting analysis with Gemini...
+
+Gemini API response received
+
+Gemini response: {'is_product_page': False, 'confidence': 0.8}
