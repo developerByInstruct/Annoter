@@ -130,9 +130,8 @@ class ProductScraper:
             response = self.session.get(url, timeout=30)
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # Debug: Print the HTML structure
-            st.write("HTML Structure Analysis:")
-            st.write("Title:", soup.title.text if soup.title else "No title found")
+            # Debug: Print minimal page info
+            st.write(f"\nProcessing page: {url}")
             
             # Get all links including JavaScript-rendered ones
             all_links = set()
@@ -148,53 +147,34 @@ class ProductScraper:
                 ]))
                 
             if product_grid:
-                st.write("Found main product grid")
                 # Look for individual product items - only get top-level products
                 product_items = product_grid.find_all(['li', 'div'], class_=lambda x: x and 
                     'product-small col' in ' '.join(x if isinstance(x, list) else [x]), recursive=False)
                 
-                st.write(f"Found {len(product_items)} product items")
+                st.write(f"Found {len(product_items)} products on page")
                 
+                # Extract product links
                 for item in product_items:
-                    st.write("Processing product item:")
-                    st.write("Classes:", item.get('class', []))
-                    
-                    # Debug: Print item HTML
-                    st.write("Item HTML structure:")
-                    st.write(str(item)[:500] + "..." if len(str(item)) > 500 else str(item))
-                    
-                    # Find the first product link in this item
-                    product_link = None
-                    link_elem = item.find('a', href=True)
-                    
-                    if link_elem and 'href' in link_elem.attrs:
-                        href = link_elem['href']
+                    for link in item.find_all('a', href=True):
+                        href = link.get('href', '')
                         if '/product/' in href:
-                            product_link = href
-                            st.write(f"Found product link: {href}")
-                    
-                    if product_link:
-                        full_url = urljoin(self.brand_url, product_link)
-                        if full_url.startswith(self.brand_url):
-                            all_links.add(full_url)
-                            st.write(f"Added unique product link: {full_url}")
+                            full_url = urljoin(self.brand_url, href)
+                            if full_url.startswith(self.brand_url):
+                                all_links.add(full_url)
+                            break  # Only get the first product link from each item
                 
                 # Look for pagination links
                 pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
                     any(term in str(x).lower() for term in ['pagination', 'pager', 'nav-links', 'page-numbers']))
                 if pager:
-                    st.write("Found pagination nav")
                     for a in pager.find_all('a', href=True):
                         link = urljoin(self.brand_url, a['href'])
                         if link.startswith(self.brand_url) and ('page/' in link or 'p=' in link):
                             pagination_links.add(link)
-                            st.write(f"Added pagination link: {link}")
                 
-                # Add debug logging
-                st.write(f"Found {len(all_links)} unique product links")
-                st.write("Product links:", list(all_links))
+                # Summary logging
+                st.write(f"Extracted {len(all_links)} unique product links")
                 st.write(f"Found {len(pagination_links)} pagination links")
-                st.write("Pagination links:", list(pagination_links))
                 
                 # Return the results
                 return {
@@ -203,7 +183,7 @@ class ProductScraper:
                     'category_pages': []
                 }
             else:
-                st.warning("No product grid found on the page")
+                st.write("No product grid found on this page")
                 return {'product_pages': [], 'pagination_links': [], 'category_pages': []}
             
         except Exception as e:
