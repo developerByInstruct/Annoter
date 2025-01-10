@@ -161,15 +161,35 @@ class ProductScraper:
                 st.write("-" * 30)
                 
                 for item_index, item in enumerate(product_items, 1):
-                    # Get the first link from this product item
-                    link = item.find('a', href=True)
-                    if link and 'href' in link.attrs:
-                        href = link['href']
-                        full_url = urljoin(self.brand_url, href)
-                        if full_url.startswith(self.brand_url):
-                            all_links.add(full_url)
-                            product_count += 1
-                            st.write(f"Added product {product_count}: {full_url}")
+                    st.write(f"\nProduct item {item_index}:")
+                    # Debug: Print the first few lines of the item HTML
+                    st.write("Item HTML:")
+                    st.write(str(item)[:200])
+                    
+                    # First try to find link in product title
+                    link = item.find('div', class_='box-text').find('a', href=True) if item.find('div', class_='box-text') else None
+                    
+                    # If no link found in title, try image area
+                    if not link:
+                        link = item.find('div', class_='box-image').find('a', href=True) if item.find('div', class_='box-image') else None
+                    
+                    if link:
+                        st.write(f"Found link element: {link}")
+                        if 'href' in link.attrs:
+                            href = link['href']
+                            st.write(f"Found href: {href}")
+                            full_url = urljoin(self.brand_url, href)
+                            st.write(f"Full URL: {full_url}")
+                            if full_url.startswith(self.brand_url):
+                                all_links.add(full_url)
+                                product_count += 1
+                                st.write(f"✓ Added product {product_count}: {full_url}")
+                            else:
+                                st.write("✗ URL doesn't start with brand URL")
+                        else:
+                            st.write("✗ No href attribute found")
+                    else:
+                        st.write("✗ No link element found")
                 
                 # Look for pagination links
                 st.write("\nExtracting pagination links:")
