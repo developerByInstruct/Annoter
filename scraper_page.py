@@ -137,65 +137,45 @@ class ProductScraper:
             # Get all links including JavaScript-rendered ones
             all_links = set()
             
-            # Look for WooCommerce specific product containers
-            woo_containers = soup.find_all(class_=lambda x: x and any(term in str(x).lower() 
-                for term in ['products', 'woocommerce', 'wc-block-grid', 'product-category',
-                           'product-grid', 'product-list', 'products-grid', 'products-list',
-                           'product-container', 'product-wrapper', 'product-item', 
-                           'product-card', 'product-box', 'wc-products']))
+            # First try to find the main product grid
+            product_grid = soup.find('ul', class_='products') or soup.find('div', class_='products')
             
-            st.write(f"Found {len(woo_containers)} product containers")
-            
-            # Extract links from product containers first
-            for container in woo_containers:
-                st.write(f"Container classes: {container.get('class', [])}")
+            if product_grid:
+                st.write("Found main product grid")
+                # Look for individual product items
+                product_items = product_grid.find_all(['li', 'div'], class_=lambda x: x and 
+                    ('product' in x and not any(term in x for term in ['widget', 'sidebar', 'cart'])))
                 
-                # Look for links in product containers
-                product_links = container.find_all('a', href=True)
-                st.write(f"Found {len(product_links)} links in container")
+                st.write(f"Found {len(product_items)} product items")
                 
-                for a in product_links:
-                    link = urljoin(self.brand_url, a['href'])
-                    if link.startswith(self.brand_url):
-                        all_links.add(link)
-                        st.write(f"Added product link: {link}")
+                for item in product_items:
+                    # Try to find the product link - usually the first link in the item
+                    product_link = item.find('a', class_='woocommerce-LoopProduct-link') or item.find('a')
+                    if product_link and 'href' in product_link.attrs:
+                        link = urljoin(self.brand_url, product_link['href'])
+                        if link.startswith(self.brand_url) and '#' not in link:  # Exclude anchor links
+                            all_links.add(link)
+                            st.write(f"Added product link: {link}")
             
-            # If no links found in containers, try finding product links directly
             if not all_links:
-                st.write("No links found in containers, trying direct product links...")
+                st.write("No product grid found, trying alternative methods...")
                 # Look for product links with specific patterns
-                product_links = soup.find_all('a', href=re.compile(r'/product/|/item/|/p/|products/'))
+                product_links = soup.find_all('a', href=re.compile(r'/product/[^#]+'))
                 for a in product_links:
                     link = urljoin(self.brand_url, a['href'])
-                    if link.startswith(self.brand_url):
+                    if link.startswith(self.brand_url) and '#' not in link:
                         all_links.add(link)
                         st.write(f"Added direct product link: {link}")
             
             # Look for pagination links
             pagination_links = set()
-            pager_elements = soup.find_all(class_=lambda x: x and any(term in str(x).lower() 
-                for term in ['pagination', 'pager', 'woocommerce-pagination', 'page-numbers']))
-            
-            for pager in pager_elements:
-                for a in pager.find_all('a', href=True):
+            pager = soup.find('nav', class_='woocommerce-pagination')
+            if pager:
+                for a in pager.find_all('a', class_='page-numbers'):
                     link = urljoin(self.brand_url, a['href'])
                     if link.startswith(self.brand_url):
                         pagination_links.add(link)
                         st.write(f"Added pagination link: {link}")
-            
-            # Get platform-specific context
-            platform_context = self.adapter.get_platform_context(soup)
-            
-            # Use URL analyzer with enhanced context
-            context = {
-                'url': url,
-                'title': soup.title.text if soup.title else '',
-                'platform': self.platform,
-                'platform_context': platform_context,
-                'response_status': response.status_code,
-                'content_type': response.headers.get('content-type', ''),
-                'page_type_hints': self._get_page_type_hints(soup)
-            }
             
             # Add debug logging
             st.write(f"Found {len(all_links)} potential product links")
