@@ -161,33 +161,15 @@ class ProductScraper:
                 st.write("-" * 30)
                 
                 for item_index, item in enumerate(product_items, 1):
-                    st.write(f"\nProcessing product item {item_index}:")
-                    found_product_link = False
-                    
-                    for link in item.find_all('a', href=True):
-                        href = link.get('href', '')
-                        st.write(f"  Checking link: {href}")
-                        
-                        # First normalize the URL
+                    # Get the first link from this product item
+                    link = item.find('a', href=True)
+                    if link and 'href' in link.attrs:
+                        href = link['href']
                         full_url = urljoin(self.brand_url, href)
-                        
-                        # Parse the URL to check the path
-                        try:
-                            from urllib.parse import urlparse
-                            parsed_url = urlparse(full_url)
-                            if '/product/' in parsed_url.path:  # Check only the path part
-                                if full_url.startswith(self.brand_url):
-                                    all_links.add(full_url)
-                                    product_count += 1
-                                    st.write(f"  ✓ Added product {product_count}: {full_url}")
-                                    found_product_link = True
-                                    break  # Only get the first product link from each item
-                        except Exception as e:
-                            st.write(f"  Error parsing URL: {e}")
-                            continue
-                    
-                    if not found_product_link:
-                        st.write("  ✗ No valid product link found in this item")
+                        if full_url.startswith(self.brand_url):
+                            all_links.add(full_url)
+                            product_count += 1
+                            st.write(f"Added product {product_count}: {full_url}")
                 
                 # Look for pagination links
                 st.write("\nExtracting pagination links:")
