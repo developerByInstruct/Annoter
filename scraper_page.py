@@ -131,7 +131,9 @@ class ProductScraper:
             soup = BeautifulSoup(response.text, 'html.parser')
             
             # Debug: Print minimal page info
-            st.write(f"\nProcessing page: {url}")
+            st.write(f"\n{'='*50}")
+            st.write(f"Processing page: {url}")
+            st.write(f"{'='*50}\n")
             
             # Get all links including JavaScript-rendered ones
             all_links = set()
@@ -154,17 +156,34 @@ class ProductScraper:
                 st.write(f"Found {len(product_items)} products on page")
                 
                 # Extract product links
-                for item in product_items:
+                product_count = 0
+                st.write("\nExtracting product links:")
+                st.write("-" * 30)
+                
+                for item_index, item in enumerate(product_items, 1):
+                    st.write(f"\nProcessing product item {item_index}:")
+                    found_product_link = False
+                    
                     for link in item.find_all('a', href=True):
                         href = link.get('href', '')
+                        st.write(f"  Checking link: {href}")
+                        
                         if '/product/' in href:
                             full_url = urljoin(self.brand_url, href)
                             if full_url.startswith(self.brand_url):
                                 all_links.add(full_url)
-                                st.write(f"Added product: {full_url}")  # Debug line to verify links are being added
+                                product_count += 1
+                                st.write(f"  ✓ Added product {product_count}: {full_url}")
+                                found_product_link = True
                                 break  # Only get the first product link from each item
+                    
+                    if not found_product_link:
+                        st.write("  ✗ No valid product link found in this item")
                 
                 # Look for pagination links
+                st.write("\nExtracting pagination links:")
+                st.write("-" * 30)
+                
                 pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
                     any(term in str(x).lower() for term in ['pagination', 'pager', 'nav-links', 'page-numbers']))
                 if pager:
@@ -172,10 +191,19 @@ class ProductScraper:
                         link = urljoin(self.brand_url, a['href'])
                         if link.startswith(self.brand_url) and ('page/' in link or 'p=' in link):
                             pagination_links.add(link)
+                            st.write(f"Found pagination link: {link}")
                 
                 # Summary logging
-                st.write(f"Extracted {len(all_links)} unique product links")
+                st.write("\nSummary:")
+                st.write("-" * 30)
+                st.write(f"Extracted {len(all_links)} unique product links ({product_count} found on this page)")
                 st.write(f"Found {len(pagination_links)} pagination links")
+                
+                # Debug: Show what's being returned
+                st.write("\nReturning:")
+                st.write("-" * 30)
+                st.write("Product pages:", list(all_links))
+                st.write("Pagination links:", list(pagination_links))
                 
                 # Return the results
                 return {
