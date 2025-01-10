@@ -1,15 +1,15 @@
 
 Collecting product pages...
 
-Processing: https://suavehome.co.uk/product-category/home-garden/decor/rugs/#tab_kitchen
+Processing: https://suavehome.co.uk/product-category/home-garden/decor/rugs/#tab_outdoor-accessories
 Products Scraped
 
 0/20
 +0 new
 Links Visited
 
-5
-191 remaining
+6
+227 remaining
 HTML Structure Analysis:
 
 Title: Rugs - Suave Home UK
@@ -404,121 +404,3 @@ Found href: https://suavehome.co.uk/product/handmade-rug-jute-with-olive-green-b
 Processing product item:
 
 Classes:
-
-[
-0:"product-small"
-1:"col"
-2:"has-hover"
-3:"product"
-4:"type-product"
-5:"post-767167"
-6:"status-publish"
-7:"instock"
-8:"product_cat-decor"
-9:"product_cat-home-garden"
-10:"product_cat-rugs"
-11:"has-post-thumbnail"
-12:"shipping-taxable"
-13:"purchasable"
-14:"product-type-simple"
-]
-Item HTML structure:
-
-<div class="product-small col has-hover product type-product post-767167 status-publish instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Rug Rectangular Brown70x400 cm Bamboo" href="https://suavehome.co.uk/product/rug-rectangular-bro...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/rug-rectangular-brown70x400-cm-bamboo/
-
-Found href: https://suavehome.co.uk/product/rug-rectangular-brown70x400-cm-bamboo/
-
-Processing product item:
-
-Classes:
-
-[
-0:"product-small"
-1:"box"
-]
-Item HTML structure:
-
-<div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Rug Rectangular Brown70x400 cm Bamboo" href="https://suavehome.co.uk/product/rug-rectangular-brown70x400-cm-bamboo/"> <img alt="" class="attachment-woocommerce_thumbnail size-woocommerce_thumbnail" decoding="async" loading="lazy" src="https://vdxl.im/8721012369030_m_en_hd_1.jpg" width="1920"/> </a> </div> <div class="image-tools is-small top right show-on-hover"> </div> <div class="image-tools is-smal...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/rug-rectangular-brown70x400-cm-bamboo/
-
-Found href: https://suavehome.co.uk/product/rug-rectangular-brown70x400-cm-bamboo/
-
-Processing product item:
-
-Classes:
-
-[
-0:"box-text"
-1:"box-text-products"
-]
-Item HTML structure:
-
-<div class="box-text box-text-products"> <div class="title-wrapper"><p class="name product-title woocommerce-loop-product__title"><a class="woocommerce-LoopProduct-link woocommerce-loop-product__link" href="https://suavehome.co.uk/product/rug-rectangular-brown70x400-cm-bamboo/">Rug Rectangular Brown70x400 cm Bamboo</a></p></div><div class="price-wrapper"> <span class="price"><span class="woocommerce-Price-amount amount"><bdi><span class="woocommerce-Price-currencySymbol">£</span>43.99</bdi></spa...
-Found product title p tag
-
-Found 1 direct links in item
-
-Found href: https://suavehome.co.uk/product/rug-rectangular-brown70x400-cm-bamboo/
-
-Processing product item:
-
-Classes:
-
-[
-0:"product-small"
-1:"col"
-2:"has-hover"
-3:"product"
-4:"type-product"
-5:"post-767166"
-6:"status-publish"
-7:"instock"
-8:"product_cat-decor"
-9:"product_cat-home-garden"
-10:"product_cat-rugs"
-11:"has-post-thumbnail"
-12:"shipping-taxable"
-13:"purchasable"
-14:"product-type-simple"
-]
-Item HTML structure:
-
-<div class="product-small col has-hover product type-product post-767166 status-publish instock product_cat-decor product_cat-home-garden product_cat-rugs has-post-thumbnail shipping-taxable purchasable product-type-simple"> <div class="col-inner"> <div class="badge-container absolute left top z-1"> </div> <div class="product-small box"> <div class="box-image"> <div class="image-none"> <a aria-label="Rug Rectangular Light Natural60x300 cm Bamboo" href="https://suavehome.co.uk/product/rug-rectang...
-Found box-image div
-
-Found product title p tag
-
-Found box-text div
-
-Found 2 direct links in item
-
-Found href: https://suavehome.co.uk/product/rug-rectangular-light-natural60x300-cm-bamboo/
-
-Found href: https://suavehome.co.uk/product/rug-rectangular-light-natural60x300-cm-bamboo/
-
-Processing product item:
-
-Classes:
-
-[
-0:"product-small"
-1:"box"
-]
-Item HTML structure:

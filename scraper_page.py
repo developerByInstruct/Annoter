@@ -136,15 +136,16 @@ class ProductScraper:
             
             # Get all links including JavaScript-rendered ones
             all_links = set()
+            pagination_links = set()
             
             # First try to find the main product grid
             product_grid = soup.find(['ul', 'div'], class_=lambda x: x and ('products' in x or 'product-grid' in x))
             
             if product_grid:
                 st.write("Found main product grid")
-                # Look for individual product items
+                # Look for individual product items - only get top-level products
                 product_items = product_grid.find_all(['li', 'div'], class_=lambda x: x and 
-                    ('product' in x and not any(term in x for term in ['widget', 'sidebar', 'cart'])))
+                    'product-small col' in ' '.join(x if isinstance(x, list) else [x]), recursive=False)
                 
                 st.write(f"Found {len(product_items)} product items")
                 
@@ -156,86 +157,25 @@ class ProductScraper:
                     st.write("Item HTML structure:")
                     st.write(str(item)[:500] + "..." if len(str(item)) > 500 else str(item))
                     
-                    # Try multiple ways to find the product link
-                    product_link = None
+                    # Find all product links in this item
+                    all_item_links = item.find_all('a', href=True)
+                    product_links = set()
                     
-                    # Method 1: Find link in product-image div
-                    if not product_link:
-                        img_div = item.find('div', class_='box-image')
-                        if img_div:
-                            st.write("Found box-image div")
-                            direct_link = img_div.find('a', href=True)
-                            if direct_link:
-                                href = direct_link.get('href')
-                                if href:
-                                    link = urljoin(self.brand_url, href)
-                                    if link.startswith(self.brand_url):
-                                        all_links.add(link)
-                                        st.write(f"Added image box link: {link}")
-                                        product_link = link
+                    for link in all_item_links:
+                        href = link.get('href', '')
+                        if href and '/product/' in href:
+                            link_url = urljoin(self.brand_url, href)
+                            if link_url.startswith(self.brand_url):
+                                product_links.add(link_url)
+                                st.write(f"Found product link: {link_url}")
                     
-                    # Method 2: Find link in product title
-                    if not product_link:
-                        title_div = item.find('p', class_='product-title')
-                        if title_div:
-                            st.write("Found product title p tag")
-                            title_link = title_div.find('a', href=True)
-                            if title_link:
-                                href = title_link.get('href')
-                                if href:
-                                    link = urljoin(self.brand_url, href)
-                                    if link.startswith(self.brand_url):
-                                        all_links.add(link)
-                                        st.write(f"Added title link: {link}")
-                                        product_link = link
-                    
-                    # Method 3: Find any link in box-text
-                    if not product_link:
-                        box_text = item.find('div', class_='box-text')
-                        if box_text:
-                            st.write("Found box-text div")
-                            box_links = box_text.find_all('a', href=True)
-                            for link in box_links:
-                                href = link.get('href')
-                                if href:
-                                    link = urljoin(self.brand_url, href)
-                                    if link.startswith(self.brand_url):
-                                        all_links.add(link)
-                                        st.write(f"Added box text link: {link}")
-                                        product_link = link
-                                        break
-                    
-                    # Method 4: Direct links in product item (as fallback)
-                    if not product_link:
-                        all_links_in_item = item.find_all('a', href=True)
-                        if all_links_in_item:
-                            st.write(f"Found {len(all_links_in_item)} direct links in item")
-                            for link in all_links_in_item:
-                                href = link.get('href')
-                                if href:
-                                    st.write(f"Found href: {href}")
-                                    link_url = urljoin(self.brand_url, href)
-                                    if link_url.startswith(self.brand_url):
-                                        all_links.add(link_url)
-                                        st.write(f"Added direct link: {link_url}")
-                                        product_link = link_url
-                                        break
-            
-            if not all_links:
-                st.write("No product grid found or no links extracted, trying alternative methods...")
-                # Look for any links that match product patterns
-                all_links_elements = soup.find_all('a', href=True)
-                for link in all_links_elements:
-                    href = link.get('href', '')
-                    st.write(f"Found general link with href: {href}")
-                    if href:
-                        link_url = urljoin(self.brand_url, href)
-                        if link_url.startswith(self.brand_url):
-                            all_links.add(link_url)
-                            st.write(f"Added general link: {link_url}")
+                    # Add the first product link found (they're all the same for a given product)
+                    if product_links:
+                        product_link = next(iter(product_links))
+                        all_links.add(product_link)
+                        st.write(f"Added unique product link: {product_link}")
             
             # Look for pagination links
-            pagination_links = set()
             pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
                 any(term in str(x) for term in ['pagination', 'pager', 'nav-links']))
             if pager:
@@ -247,11 +187,12 @@ class ProductScraper:
                         st.write(f"Added pagination link: {link}")
             
             # Add debug logging
-            st.write(f"Found {len(all_links)} potential product links")
-            st.write("Sample product links:", list(all_links)[:5])
+            st.write(f"Found {len(all_links)} unique product links")
+            st.write("Product links:", list(all_links))
             st.write(f"Found {len(pagination_links)} pagination links")
-            st.write("Sample pagination links:", list(pagination_links)[:5])
+            st.write("Pagination links:", list(pagination_links))
             
+            # Return the results
             return {
                 'product_pages': list(all_links),
                 'pagination_links': list(pagination_links),
