@@ -130,87 +130,58 @@ class ProductScraper:
             response = self.session.get(url, timeout=30)
             soup = BeautifulSoup(response.text, 'html.parser')
             
+            # Debug: Print the HTML structure
+            st.write("HTML Structure Analysis:")
+            st.write("Title:", soup.title.text if soup.title else "No title found")
+            
             # Get all links including JavaScript-rendered ones
             all_links = set()
             
-            # Look for product grid/list containers first
-            product_containers = soup.find_all(class_=lambda x: x and any(term in str(x).lower() 
-                for term in ['products', 'product-grid', 'product-list', 'products-grid', 
-                           'products-list', 'product-container', 'product-wrapper',
-                           'product-item', 'product-card', 'product-box']))
+            # Look for WooCommerce specific product containers
+            woo_containers = soup.find_all(class_=lambda x: x and any(term in str(x).lower() 
+                for term in ['products', 'woocommerce', 'wc-block-grid', 'product-category',
+                           'product-grid', 'product-list', 'products-grid', 'products-list',
+                           'product-container', 'product-wrapper', 'product-item', 
+                           'product-card', 'product-box', 'wc-products']))
+            
+            st.write(f"Found {len(woo_containers)} product containers")
             
             # Extract links from product containers first
-            for container in product_containers:
+            for container in woo_containers:
+                st.write(f"Container classes: {container.get('class', [])}")
+                
                 # Look for links in product containers
-                for a in container.find_all('a', href=True):
+                product_links = container.find_all('a', href=True)
+                st.write(f"Found {len(product_links)} links in container")
+                
+                for a in product_links:
                     link = urljoin(self.brand_url, a['href'])
                     if link.startswith(self.brand_url):
                         all_links.add(link)
-                
-                # Look for product data in data attributes
-                product_elements = container.find_all(attrs=lambda x: any(
-                    k.startswith('data-product') for k in x.keys()
-                ))
-                for elem in product_elements:
-                    for attr, value in elem.attrs.items():
-                        if isinstance(value, str) and (value.startswith('http') or value.startswith('/')):
-                            link = urljoin(self.brand_url, value)
-                            if link.startswith(self.brand_url):
-                                all_links.add(link)
+                        st.write(f"Added product link: {link}")
             
-            # If no product containers found, try standard href links
+            # If no links found in containers, try finding product links directly
             if not all_links:
-                # Standard href links
-                for a in soup.find_all('a', href=True):
-                    href = a['href']
-                    # Look for common product URL patterns
-                    if any(pattern in href.lower() for pattern in ['/product/', '/item/', '/p/', 'products/']):
-                        link = urljoin(self.brand_url, href)
-                        if link.startswith(self.brand_url):
-                            all_links.add(link)
+                st.write("No links found in containers, trying direct product links...")
+                # Look for product links with specific patterns
+                product_links = soup.find_all('a', href=re.compile(r'/product/|/item/|/p/|products/'))
+                for a in product_links:
+                    link = urljoin(self.brand_url, a['href'])
+                    if link.startswith(self.brand_url):
+                        all_links.add(link)
+                        st.write(f"Added direct product link: {link}")
             
-            # Look for links in onclick attributes
-            onclick_elements = soup.find_all(attrs={'onclick': True})
-            for elem in onclick_elements:
-                onclick = elem['onclick']
-                # Extract URLs from JavaScript
-                urls = re.findall(r'["\'](https?://[^"\'\s]+)["\']', onclick)
-                for url in urls:
-                    if url.startswith(self.brand_url):
-                        all_links.add(url)
+            # Look for pagination links
+            pagination_links = set()
+            pager_elements = soup.find_all(class_=lambda x: x and any(term in str(x).lower() 
+                for term in ['pagination', 'pager', 'woocommerce-pagination', 'page-numbers']))
             
-            # Look for links in data attributes
-            for elem in soup.find_all(attrs=lambda x: any(k.startswith('data-') for k in x.keys())):
-                for attr in elem.attrs:
-                    if attr.startswith('data-'):
-                        value = elem[attr]
-                        if isinstance(value, str) and (value.startswith('http') or value.startswith('/')):
-                            link = urljoin(self.brand_url, value)
-                            if link.startswith(self.brand_url):
-                                all_links.add(link)
-            
-            # Look for JSON-LD product data
-            for script in soup.find_all('script', {'type': 'application/ld+json'}):
-                try:
-                    data = json.loads(script.string)
-                    if isinstance(data, dict):
-                        if data.get('@type') == 'Product' and 'url' in data:
-                            link = urljoin(self.brand_url, data['url'])
-                            if link.startswith(self.brand_url):
-                                all_links.add(link)
-                except:
-                    continue
-            
-            # Look for product links in any embedded JavaScript
-            scripts = soup.find_all('script')
-            for script in scripts:
-                if script.string:
-                    # Look for product URLs in JavaScript variables
-                    urls = re.findall(r'["\'](/[^"\']*?(?:product|item)[^"\']*?)["\']', script.string)
-                    for url in urls:
-                        link = urljoin(self.brand_url, url)
-                        if link.startswith(self.brand_url):
-                            all_links.add(link)
+            for pager in pager_elements:
+                for a in pager.find_all('a', href=True):
+                    link = urljoin(self.brand_url, a['href'])
+                    if link.startswith(self.brand_url):
+                        pagination_links.add(link)
+                        st.write(f"Added pagination link: {link}")
             
             # Get platform-specific context
             platform_context = self.adapter.get_platform_context(soup)
@@ -227,25 +198,20 @@ class ProductScraper:
             }
             
             # Add debug logging
-            st.write(f"Found {len(all_links)} potential links")
-            st.write("Sample links:", list(all_links)[:5])
+            st.write(f"Found {len(all_links)} potential product links")
+            st.write("Sample product links:", list(all_links)[:5])
+            st.write(f"Found {len(pagination_links)} pagination links")
+            st.write("Sample pagination links:", list(pagination_links)[:5])
             
-            classification = self.url_analyzer.analyze_urls(list(all_links), context)
-            
-            # Add more debug logging
-            st.write(f"Classified as product pages: {len(classification['product_pages'])}")
-            st.write("Sample product pages:", classification['product_pages'][:5])
-            
+            # For this site, we'll consider all links in product containers as product pages
             return {
-                'product_pages': [url for url in classification['product_pages'] 
-                                if url not in self.visited_urls],
-                'pagination_links': [url for url in classification['pagination_links'] 
-                                   if url not in self.visited_urls],
-                'category_pages': classification['category_pages']
+                'product_pages': list(all_links),
+                'pagination_links': list(pagination_links),
+                'category_pages': []
             }
             
         except Exception as e:
-            self.error_handler.handle_url_error(url, e)
+            st.error(f"Error extracting links: {str(e)}")
             return {'product_pages': [], 'pagination_links': [], 'category_pages': []}
 
     def _get_page_type_hints(self, soup: BeautifulSoup) -> Dict[str, bool]:
