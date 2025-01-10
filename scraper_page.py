@@ -161,7 +161,8 @@ class ProductScraper:
                             full_url = urljoin(self.brand_url, href)
                             if full_url.startswith(self.brand_url):
                                 all_links.add(full_url)
-                            break  # Only get the first product link from each item
+                                st.write(f"Added product: {full_url}")  # Debug line to verify links are being added
+                                break  # Only get the first product link from each item
                 
                 # Look for pagination links
                 pager = soup.find(['nav', 'div', 'ul'], class_=lambda x: x and 
